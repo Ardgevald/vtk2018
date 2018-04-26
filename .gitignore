@@ -1,6 +1,8 @@
-.avi
-.pdf
-.zip
+**.avi
+**.pdf
+**.zip
 .idea
 .vscode
-.png
+**.png
+**.rar
+**.mov
