@@ -86,6 +86,31 @@ actorGrillage = vtk.vtkActor()
 actorGrillage.SetMapper(mapperGrillage)
 actorGrillage.GetProperty().SetColor(0,0,0)
 
+# création des anneaux
+points = vtk.vtkPoints()
+normals = vtk.vtkDoubleArray()
+normals.SetNumberOfComponents(3)
+normals.SetNumberOfTuples(20)
+for z in range(20):
+    points.InsertNextPoint(0, 0, z * 30)
+    normals.SetTuple3(z, 0, 0, 1)
+
+planes = vtk.vtkPlanes()
+planes.SetPoints(points)
+planes.SetNormals(normals)
+
+cutter = vtk.vtkCutter()
+cutter.SetCutFunction(planes)
+cutter.SetInputConnection(skinSurface.GetOutputPort())
+
+cutterMapper = vtk.vtkPolyDataMapper()
+cutterMapper.SetInputConnection(cutter.GetOutputPort())
+
+planeActor = vtk.vtkActor()
+planeActor.GetProperty().SetColor(0.8, 0.3, 0.3)
+planeActor.GetProperty().SetLineWidth(4)
+planeActor.SetMapper(cutterMapper)
+
 # création de la sphère sous forme d'acteur
 sphereSource = vtk.vtkSphereSource()
 sphereSource.SetRadius(50)
