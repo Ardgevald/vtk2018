@@ -119,17 +119,16 @@ clippedSkinActor.GetProperty().SetColor(0.8, 0.3, 0.3)
 # ajout de la transparence sur la peau clippée (uniquement à l'avant)
 frontProp = vtk.vtkProperty()
 frontProp.SetOpacity(0.4)
-frontProp.SetColor(0.8, 0.3, 0.3)
+frontProp.SetColor(0.3, 0.8, 0.3)
 
 backProp = vtk.vtkProperty()
 frontProp.SetOpacity(0.99)
-backProp.SetColor(0.8, 0.3, 0.3)
+backProp.SetColor(0.3, 0.3, 0.8)
 
 clippedTransparentSkinActor = vtk.vtkActor()
 clippedTransparentSkinActor.SetMapper(clipMapper)
 clippedTransparentSkinActor.SetProperty(frontProp)
 clippedTransparentSkinActor.SetBackfaceProperty(backProp)
-
 
 # mise en place des rendus et des acteurs
 ringRenderer = newRenderer({skinActor, boneActor, actorGrillage})
@@ -143,8 +142,15 @@ transparentRenderer.SetViewport(0.5, 0.5, 1.0, 1.0)
 normalRenderernderer.SetViewport(0.0, 0.0, 0.5, 0.5)
 proximityRenderer.SetViewport(0.5, 0.0, 1.0, 0.5)
 
+# same camera for each renderer for sync
+camera = ringRenderer.GetActiveCamera()
+transparentRenderer.SetActiveCamera(camera)
+normalRenderernderer.SetActiveCamera(camera)
+proximityRenderer.SetActiveCamera(camera)
+
 # création de la fenêtre d'affichage
 renderWindow = vtk.vtkRenderWindow()
+renderWindow.SetSize(800, 600)
 renderWindow.AddRenderer(ringRenderer)
 renderWindow.AddRenderer(transparentRenderer)
 renderWindow.AddRenderer(normalRenderernderer)
