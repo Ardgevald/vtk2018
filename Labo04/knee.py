@@ -17,7 +17,6 @@ reader.SetFileName("vw_knee.slc")
 reader.Update()
 
 imageData = reader.GetOutput()
-x, y, z = imageData.GetDimensions()
 
 # utulise le volume pour en faire une isosurface pour l'os
 boneSurface = vtk.vtkMarchingCubes()
@@ -133,6 +132,7 @@ clippedTransparentSkinActor.SetProperty(frontProp)
 clippedTransparentSkinActor.SetBackfaceProperty(backProp)
 
 # coloration de l'os selon la distance à la peau
+'''
 boneFilter = vtk.vtkDistancePolyDataFilter()
 boneFilter.SetInputConnection(0, boneSurface.GetOutputPort())
 boneFilter.SetInputConnection(1, skinSurface.GetOutputPort())
@@ -144,13 +144,13 @@ distanceMapper.SetScalarRange(boneFilter.GetOutput().GetPointData().GetScalars()
 
 coloredBoneActor = vtk.vtkActor()
 coloredBoneActor.SetMapper(distanceMapper)
-
+'''
 # mise en place des rendus et des acteurs
 ringRenderer = newRenderer({skinActor, boneActor, actorGrillage})
 transparentRenderer = newRenderer({clippedTransparentSkinActor, boneActor, actorGrillage, actorSphere})
 normalRenderernderer = newRenderer({clippedSkinActor, boneActor, actorGrillage, actorSphere})
-proximityRenderer = newRenderer({coloredBoneActor, actorGrillage})
-
+# proximityRenderer = newRenderer({coloredBoneActor, actorGrillage})
+proximityRenderer = vtk.vtkRenderer()
 # découpe la fenêtre pour placer les différents rendus
 ringRenderer.SetViewport(0.0, 0.5, 0.5, 1.0)
 transparentRenderer.SetViewport(0.5, 0.5, 1.0, 1.0)
@@ -159,8 +159,8 @@ proximityRenderer.SetViewport(0.5, 0.0, 1.0, 0.5)
 
 # same camera for each renderer for sync
 camera = vtk.vtkCamera()
-camera.SetPosition(x / 2, 2 * y, z / 2)
-camera.SetFocalPoint(x/2,y/2,z/2)
+camera.SetPosition(xCenter + xLength * 0.01, yCenter - yLength * 3, zCenter)
+camera.SetFocalPoint(xCenter, yCenter, zCenter)
 camera.Roll(90)
 ringRenderer.SetActiveCamera(camera)
 transparentRenderer.SetActiveCamera(camera)
