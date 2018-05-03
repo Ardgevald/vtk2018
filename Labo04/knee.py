@@ -85,23 +85,56 @@ actorGrillage = vtk.vtkActor()
 actorGrillage.SetMapper(mapperGrillage)
 actorGrillage.GetProperty().SetColor(0,0,0)
 
-# création de la sphère (aide à la vision interne)
-sphere = vtk.vtkSphereSource()
-
-sphere.SetRadius(50)
-sphere.SetCenter(xCenter, yCenter - 60, zCenter)
+# création de la sphère sous forme d'acteur
+sphereSource = vtk.vtkSphereSource()
+sphereSource.SetRadius(50)
+sphereSource.SetCenter(xCenter, yCenter - 60, zCenter)
 
 mapperSphere = vtk.vtkPolyDataMapper()
-mapperSphere.SetInputConnection(sphere.GetOutputPort())
+mapperSphere.SetInputConnection(sphereSource.GetOutputPort())
 
 actorSphere = vtk.vtkActor()
 actorSphere.SetMapper(mapperSphere)
-actorSphere.GetProperty().SetOpacity(0.3)
+actorSphere.GetProperty().SetOpacity(0.1)
+
+# clipping de la peau par une sphère
+sphere = vtk.vtkSphere()
+sphere.SetRadius(50)
+sphere.SetCenter(xCenter, yCenter - 60, zCenter)
+
+clip = vtk.vtkClipPolyData()
+clip.SetInputConnection(skinSurface.GetOutputPort())
+clip.SetClipFunction(sphere)
+clip.InsideOutOff()
+clip.GenerateClippedOutputOn()
+
+clipMapper = vtk.vtkPolyDataMapper()
+clipMapper.SetInputConnection(clip.GetOutputPort())
+clipMapper.ScalarVisibilityOff()
+
+clippedSkinActor = vtk.vtkActor()
+clippedSkinActor.SetMapper(clipMapper)
+clippedSkinActor.GetProperty().SetColor(0.8, 0.3, 0.3)
+
+# ajout de la transparence sur la peau clippée (uniquement à l'avant)
+frontProp = vtk.vtkProperty()
+frontProp.SetOpacity(0.4)
+frontProp.SetColor(0.8, 0.3, 0.3)
+
+backProp = vtk.vtkProperty()
+frontProp.SetOpacity(0.99)
+backProp.SetColor(0.8, 0.3, 0.3)
+
+clippedTransparentSkinActor = vtk.vtkActor()
+clippedTransparentSkinActor.SetMapper(clipMapper)
+clippedTransparentSkinActor.SetProperty(frontProp)
+clippedTransparentSkinActor.SetBackfaceProperty(backProp)
+
 
 # mise en place des rendus et des acteurs
 ringRenderer = newRenderer({skinActor, boneActor, actorGrillage})
-transparentRenderer = newRenderer({skinActor, boneActor, actorGrillage, actorSphere})
-normalRenderernderer = newRenderer({skinActor, boneActor, actorGrillage, actorSphere})
+transparentRenderer = newRenderer({clippedTransparentSkinActor, boneActor, actorGrillage, actorSphere})
+normalRenderernderer = newRenderer({clippedSkinActor, boneActor, actorGrillage, actorSphere})
 proximityRenderer = newRenderer({boneActor, actorGrillage})
 
 # découpe la fenêtre pour placer les différents rendus
