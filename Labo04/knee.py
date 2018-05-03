@@ -7,7 +7,7 @@ def newRenderer(actors):
     for actor in actors:
         renderer.AddActor(actor)
     renderer.SetBackground(1, 1, 1)
-    #renderer.ResetCamera()
+    renderer.ResetCamera()
     return renderer
 
 # on lit les données depuis le fichier pour créer un ensemble structuré de points (volume)
@@ -21,12 +21,14 @@ imageData = reader.GetOutput()
 boneSurface = vtk.vtkMarchingCubes()
 boneSurface.SetInputData(imageData)
 boneSurface.SetValue(40, 80)
+boneSurface.ComputeScalarsOff()
 boneSurface.Update()
 
 # utulise le volume pour en faire une isosurface pour la peau
 skinSurface = vtk.vtkMarchingCubes()
 skinSurface.SetInputData(imageData)
 skinSurface.SetValue(5, 20)
+skinSurface.ComputeScalarsOff()
 skinSurface.Update()
 
 '''
@@ -35,6 +37,7 @@ resample.SetInputData(skinSurface.GetOutput())
 resample.SetDimensionality(3)
 resample.SetMagnificationFactors(0.5, 0.5, 0.5)
 '''
+
 # création des mappers
 boneMapper = vtk.vtkPolyDataMapper()
 boneMapper.SetInputConnection(boneSurface.GetOutputPort())
@@ -46,15 +49,14 @@ skinMapper.SetInputConnection(skinSurface.GetOutputPort())
 boneActor = vtk.vtkActor()
 boneActor.SetMapper(boneMapper)
 boneActor.GetProperty().SetPointSize(3)
-boneActor.GetProperty().SetColor(250, 0, 0)
+boneActor.GetProperty().SetColor(0.9, 0.9, 0.9)
 boneActor.GetProperty().SetAmbient(0.4)
 
 skinActor = vtk.vtkActor()
 skinActor.SetMapper(skinMapper)
 skinActor.GetProperty().SetPointSize(3)
-skinActor.GetProperty().SetColor(0.5, 0, 0)
+skinActor.GetProperty().SetColor(0.8, 0.3, 0.3)
 skinActor.GetProperty().SetAmbient(0.4)
-
 
 # calcul de la taille du cube en fonction des limites de la peau
 bounds = skinMapper.GetBounds()
