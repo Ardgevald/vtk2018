@@ -85,11 +85,24 @@ actorGrillage = vtk.vtkActor()
 actorGrillage.SetMapper(mapperGrillage)
 actorGrillage.GetProperty().SetColor(0,0,0)
 
+# création de la sphère (aide à la vision interne)
+sphere = vtk.vtkSphereSource()
+
+sphere.SetRadius(50)
+sphere.SetCenter(xCenter, yCenter - 60, zCenter)
+
+mapperSphere = vtk.vtkPolyDataMapper()
+mapperSphere.SetInputConnection(sphere.GetOutputPort())
+
+actorSphere = vtk.vtkActor()
+actorSphere.SetMapper(mapperSphere)
+actorSphere.GetProperty().SetOpacity(0.3)
+
 # mise en place des rendus et des acteurs
 ringRenderer = newRenderer({skinActor, boneActor, actorGrillage})
-transparentRenderer = newRenderer({skinActor, boneActor, actorGrillage})
-normalRenderernderer = newRenderer({skinActor, boneActor, actorGrillage})
-proximityRenderer = newRenderer({skinActor, boneActor, actorGrillage})
+transparentRenderer = newRenderer({skinActor, boneActor, actorGrillage, actorSphere})
+normalRenderernderer = newRenderer({skinActor, boneActor, actorGrillage, actorSphere})
+proximityRenderer = newRenderer({boneActor, actorGrillage})
 
 # découpe la fenêtre pour placer les différents rendus
 ringRenderer.SetViewport(0.0, 0.5, 0.5, 1.0)
