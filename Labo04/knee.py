@@ -130,11 +130,24 @@ clippedTransparentSkinActor.SetMapper(clipMapper)
 clippedTransparentSkinActor.SetProperty(frontProp)
 clippedTransparentSkinActor.SetBackfaceProperty(backProp)
 
+# coloration de l'os selon la distance à la peau
+boneFilter = vtk.vtkDistancePolyDataFilter()
+boneFilter.SetInputConnection(0, boneSurface.GetOutputPort())
+boneFilter.SetInputConnection(1, skinSurface.GetOutputPort())
+boneFilter.Update()
+
+distanceMapper = vtk.vtkPolyDataMapper()
+distanceMapper.SetInputConnection(boneFilter.GetOutputPort() )
+distanceMapper.SetScalarRange(boneFilter.GetOutput().GetPointData().GetScalars().GetRange()[0], boneFilter.GetOutput().GetPointData().GetScalars().GetRange()[1])
+
+coloredBoneActor = vtk.vtkActor()
+coloredBoneActor.SetMapper(distanceMapper)
+
 # mise en place des rendus et des acteurs
 ringRenderer = newRenderer({skinActor, boneActor, actorGrillage})
 transparentRenderer = newRenderer({clippedTransparentSkinActor, boneActor, actorGrillage, actorSphere})
 normalRenderernderer = newRenderer({clippedSkinActor, boneActor, actorGrillage, actorSphere})
-proximityRenderer = newRenderer({boneActor, actorGrillage})
+proximityRenderer = newRenderer({coloredBoneActor, actorGrillage})
 
 # découpe la fenêtre pour placer les différents rendus
 ringRenderer.SetViewport(0.0, 0.5, 0.5, 1.0)
