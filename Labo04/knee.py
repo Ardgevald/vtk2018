@@ -1,6 +1,7 @@
 # coding: utf-8
 
 import vtk
+from math import pi
 
 def newRenderer(actors):
     renderer = vtk.vtkRenderer()
@@ -16,6 +17,7 @@ reader.SetFileName("vw_knee.slc")
 reader.Update()
 
 imageData = reader.GetOutput()
+x, y, z = imageData.GetDimensions()
 
 # utulise le volume pour en faire une isosurface pour l'os
 boneSurface = vtk.vtkMarchingCubes()
@@ -156,7 +158,11 @@ normalRenderernderer.SetViewport(0.0, 0.0, 0.5, 0.5)
 proximityRenderer.SetViewport(0.5, 0.0, 1.0, 0.5)
 
 # same camera for each renderer for sync
-camera = ringRenderer.GetActiveCamera()
+camera = vtk.vtkCamera()
+camera.SetPosition(x / 2, 2 * y, z / 2)
+camera.SetFocalPoint(x/2,y/2,z/2)
+camera.Roll(90)
+ringRenderer.SetActiveCamera(camera)
 transparentRenderer.SetActiveCamera(camera)
 normalRenderernderer.SetActiveCamera(camera)
 proximityRenderer.SetActiveCamera(camera)
