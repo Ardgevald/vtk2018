@@ -191,9 +191,14 @@ else:
     vtkWriter.SetFileName(KNEE_COLOR_FILE)
     vtkWriter.Write()
 
+colorsArray = vtk.vtkLookupTable()
+colorsArray.SetHueRange(0.8, 0)
+colorsArray.Build()
+
 distanceMapper = vtk.vtkPolyDataMapper()
 distanceMapper.SetInputConnection(boneFilter.GetOutputPort() )
 distanceMapper.SetScalarRange(boneFilter.GetOutput().GetPointData().GetScalars().GetRange()[0], boneFilter.GetOutput().GetPointData().GetScalars().GetRange()[1])
+distanceMapper.SetLookupTable(colorsArray)
 
 coloredBoneActor = vtk.vtkActor()
 coloredBoneActor.SetMapper(distanceMapper)
