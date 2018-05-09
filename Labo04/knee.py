@@ -159,8 +159,12 @@ backProp.SetColor(0.3, 0.3, 0.8)
 backProp.BackfaceCullingOn()
 backProp.FrontfaceCullingOn()
 
+clipTransparentMapper = vtk.vtkPolyDataMapper()
+clipTransparentMapper.SetInputConnection(clip.GetOutputPort())
+clipTransparentMapper.ScalarVisibilityOff()
+
 clippedTransparentSkinActor = vtk.vtkActor()
-clippedTransparentSkinActor.SetMapper(clipMapper)
+clippedTransparentSkinActor.SetMapper(clipTransparentMapper)
 clippedTransparentSkinActor.SetProperty(frontProp)
 clippedTransparentSkinActor.SetBackfaceProperty(backProp)
 
