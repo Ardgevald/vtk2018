@@ -28,7 +28,7 @@ boneSurface.Update()
 # utulise le volume pour en faire une isosurface pour la peau
 skinSurface = vtk.vtkMarchingCubes()
 skinSurface.SetInputData(imageData)
-skinSurface.SetValue(5, 20)
+skinSurface.SetValue(4, 21)
 skinSurface.ComputeScalarsOff()
 skinSurface.Update()
 
@@ -87,28 +87,32 @@ actorGrillage.SetMapper(mapperGrillage)
 actorGrillage.GetProperty().SetColor(0,0,0)
 
 # création des anneaux
-points = vtk.vtkPoints()
-normals = vtk.vtkDoubleArray()
-normals.SetNumberOfComponents(3)
-normals.SetNumberOfTuples(20)
-for z in range(20):
-    points.InsertNextPoint(0, 0, z * 30)
-    normals.SetTuple3(z, 0, 0, 1)
+NUMBER_OF_RING = 19
+WIDTH_OF_RING = 1
 
-planes = vtk.vtkPlanes()
-planes.SetPoints(points)
-planes.SetNormals(normals)
+plane = vtk.vtkPlane()
+plane.SetOrigin(0, 0, 0)
+plane.SetNormal(0, 0, 1)
 
 cutter = vtk.vtkCutter()
-cutter.SetCutFunction(planes)
+cutter.SetCutFunction(plane)
 cutter.SetInputConnection(skinSurface.GetOutputPort())
+cutter.GenerateValues(NUMBER_OF_RING, [0, zLength])
+cutter.Update()
+
+stripper = vtk.vtkStripper()
+stripper.SetInputConnection(cutter.GetOutputPort())
+
+tubeFilter = vtk.vtkTubeFilter()
+tubeFilter.SetInputConnection(stripper.GetOutputPort())
+tubeFilter.SetRadius(WIDTH_OF_RING)
 
 cutterMapper = vtk.vtkPolyDataMapper()
-cutterMapper.SetInputConnection(cutter.GetOutputPort())
+cutterMapper.SetInputConnection(tubeFilter.GetOutputPort())
 
 planeActor = vtk.vtkActor()
 planeActor.GetProperty().SetColor(0.8, 0.3, 0.3)
-planeActor.GetProperty().SetLineWidth(4)
+planeActor.GetProperty().SetLineWidth(WIDTH_OF_RING)
 planeActor.SetMapper(cutterMapper)
 
 # création de la sphère sous forme d'acteur
@@ -146,10 +150,14 @@ clippedSkinActor.GetProperty().SetColor(0.8, 0.3, 0.3)
 frontProp = vtk.vtkProperty()
 frontProp.SetOpacity(0.4)
 frontProp.SetColor(0.3, 0.8, 0.3)
+frontProp.BackfaceCullingOff()
+frontProp.FrontfaceCullingOff()
 
 backProp = vtk.vtkProperty()
-frontProp.SetOpacity(0.99)
+backProp.SetOpacity(0.99)
 backProp.SetColor(0.3, 0.3, 0.8)
+backProp.BackfaceCullingOn()
+backProp.FrontfaceCullingOn()
 
 clippedTransparentSkinActor = vtk.vtkActor()
 clippedTransparentSkinActor.SetMapper(clipMapper)
@@ -171,7 +179,7 @@ coloredBoneActor = vtk.vtkActor()
 coloredBoneActor.SetMapper(distanceMapper)
 '''
 # mise en place des rendus et des acteurs
-ringRenderer = newRenderer({skinActor, boneActor, actorGrillage})
+ringRenderer = newRenderer({planeActor, boneActor, actorGrillage})
 transparentRenderer = newRenderer({clippedTransparentSkinActor, boneActor, actorGrillage, actorSphere})
 normalRenderernderer = newRenderer({clippedSkinActor, boneActor, actorGrillage, actorSphere})
 # proximityRenderer = newRenderer({coloredBoneActor, actorGrillage})
@@ -202,6 +210,7 @@ renderWindow.AddRenderer(proximityRenderer)
 
 # paramètre l'interaction avec la fenêtre
 renderWindowInteractor = vtk.vtkRenderWindowInteractor()
+renderWindowInteractor.SetLightFollowCamera(True)
 
 # lancement de l'affichage
 renderWindowInteractor.SetRenderWindow(renderWindow)
