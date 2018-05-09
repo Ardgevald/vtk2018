@@ -4,18 +4,24 @@ import vtk
 from math import pi
 import os.path
 
-KNEE_COLOR_FILE = "colorationBone.vtp"
+# Mettre à True pour forcer la génération du fichier pour l'affichage des distances (le fait si le fichier n'existe pas)
+WRITE_FILE = False
 
-WRITE_FILE = True
+# Mettre à true pour utiliser ImageResample pour réduire la taille
+RESAMPLE = False
 
 BONE_COLOR = [0.9, 0.9, 0.9]
 SKIN_COLOR = [0.87, 0.675, 0.41]
+BACKGROUND_BLUE = [0.7, 0.7, 0.9]
+BACKGROUND_RED = [0.9, 0.7, 0.7]
+BACKGROUND_GREEN = [0.7, 0.9, 0.7]
+BACKGROUND_GREY = [0.85, 0.85, 0.85]
 
-def newRenderer(actors):
+def newRenderer(actors, background):
     renderer = vtk.vtkRenderer()
     for actor in actors:
         renderer.AddActor(actor)
-    renderer.SetBackground(1, 1, 1)
+    renderer.SetBackground(background)
     renderer.ResetCamera()
     return renderer
 
@@ -24,12 +30,18 @@ reader = vtk.vtkSLCReader()
 reader.SetFileName("vw_knee.slc")
 reader.Update()
 
-resample = vtk.vtkImageResample()
-resample.SetInputData(reader.GetOutput())
-resample.SetDimensionality(3)
-resample.SetMagnificationFactors(0.5, 0.5, 0.5)
+if RESAMPLE:
+    KNEE_COLOR_FILE = "colorationBoneResampled.vtp"
 
-imageData = resample.GetOutputPort()
+    resample = vtk.vtkImageResample()
+    resample.SetInputData(reader.GetOutput())
+    resample.SetDimensionality(3)
+    resample.SetMagnificationFactors(0.5, 0.5, 0.5)
+
+    imageData = resample.GetOutputPort()
+else:
+    KNEE_COLOR_FILE = "colorationBone.vtp"
+    imageData = reader.GetOutputPort()
 
 # utulise le volume pour en faire une isosurface pour l'os
 boneSurface = vtk.vtkContourFilter()
@@ -94,7 +106,7 @@ actorGrillage.GetProperty().SetColor(0,0,0)
 
 # création des anneaux
 NUMBER_OF_RING = int(zLength / 10)
-WIDTH_OF_RING = 1
+WIDTH_OF_RING = 1.5
 
 plane = vtk.vtkPlane()
 plane.SetOrigin(0, 0, 0)
@@ -132,6 +144,10 @@ mapperSphere.SetInputConnection(sphereSource.GetOutputPort())
 actorSphere = vtk.vtkActor()
 actorSphere.SetMapper(mapperSphere)
 actorSphere.GetProperty().SetOpacity(0.1)
+
+actorSphereTransparent = vtk.vtkActor()
+actorSphereTransparent.SetMapper(mapperSphere)
+actorSphereTransparent.GetProperty().SetOpacity(0)
 
 # clipping de la peau par une sphère
 sphere = vtk.vtkSphere()
@@ -175,6 +191,7 @@ clippedTransparentSkinActor.SetProperty(frontProp)
 clippedTransparentSkinActor.SetBackfaceProperty(backProp)
 
 # coloration de l'os selon la distance à la peau
+# utilise un fichier sauvegardé si disponible et non forcé à le réécrire
 if os.path.isfile(KNEE_COLOR_FILE) and not(WRITE_FILE):
     vtkReader = vtk.vtkXMLPolyDataReader()
     vtkReader.SetFileName(KNEE_COLOR_FILE)
@@ -204,20 +221,20 @@ coloredBoneActor = vtk.vtkActor()
 coloredBoneActor.SetMapper(distanceMapper)
 
 # mise en place des rendus et des acteurs
-ringRenderer = newRenderer({planeActor, boneActor, actorGrillage})
-transparentRenderer = newRenderer({clippedTransparentSkinActor, boneActor, actorGrillage, actorSphere})
-normalRenderernderer = newRenderer({clippedSkinActor, boneActor, actorGrillage, actorSphere})
-proximityRenderer = newRenderer({coloredBoneActor, actorGrillage})
-# proximityRenderer = vtk.vtkRenderer()
+ringRenderer = newRenderer({planeActor, boneActor, actorGrillage}, BACKGROUND_BLUE)
+transparentRenderer = newRenderer({clippedTransparentSkinActor, boneActor, actorGrillage, actorSphereTransparent}, BACKGROUND_GREEN)
+normalRenderernderer = newRenderer({clippedSkinActor, boneActor, actorGrillage, actorSphere}, BACKGROUND_RED)
+proximityRenderer = newRenderer({coloredBoneActor, actorGrillage}, BACKGROUND_GREY)
+
 # découpe la fenêtre pour placer les différents rendus
 ringRenderer.SetViewport(0.0, 0.5, 0.5, 1.0)
 transparentRenderer.SetViewport(0.5, 0.5, 1.0, 1.0)
 normalRenderernderer.SetViewport(0.0, 0.0, 0.5, 0.5)
 proximityRenderer.SetViewport(0.5, 0.0, 1.0, 0.5)
 
-# same camera for each renderer for sync
+# Même caméra pour tous les renderers
 camera = vtk.vtkCamera()
-camera.SetPosition(xCenter + xLength * 0.01, yCenter - yLength * 3, zCenter)
+camera.SetPosition(xCenter + xLength * 0.01, yCenter - yLength * 3, zCenter) # le 0.01 est curieusement nécessaire pour voir l'image
 camera.SetFocalPoint(xCenter, yCenter, zCenter)
 camera.Roll(90)
 ringRenderer.SetActiveCamera(camera)
