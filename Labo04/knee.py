@@ -4,9 +4,12 @@ import vtk
 from math import pi
 import os.path
 
-KNEE_COLOR_FILE = "colorationBone.vtk"
+KNEE_COLOR_FILE = "colorationBone.vtp"
 
-WRITE_FILE = False
+WRITE_FILE = True
+
+BONE_COLOR = [0.9, 0.9, 0.9]
+SKIN_COLOR = [0.87, 0.675, 0.41]
 
 def newRenderer(actors):
     renderer = vtk.vtkRenderer()
@@ -21,28 +24,26 @@ reader = vtk.vtkSLCReader()
 reader.SetFileName("vw_knee.slc")
 reader.Update()
 
-imageData = reader.GetOutput()
+resample = vtk.vtkImageResample()
+resample.SetInputData(reader.GetOutput())
+resample.SetDimensionality(3)
+resample.SetMagnificationFactors(0.5, 0.5, 0.5)
+
+imageData = resample.GetOutputPort()
 
 # utulise le volume pour en faire une isosurface pour l'os
-boneSurface = vtk.vtkMarchingCubes()
-boneSurface.SetInputData(imageData)
-boneSurface.SetValue(40, 80)
+boneSurface = vtk.vtkContourFilter()
+boneSurface.SetInputConnection(imageData)
+boneSurface.SetValue(0, 73)
 boneSurface.ComputeScalarsOff()
 boneSurface.Update()
 
 # utulise le volume pour en faire une isosurface pour la peau
-skinSurface = vtk.vtkMarchingCubes()
-skinSurface.SetInputData(imageData)
-skinSurface.SetValue(4, 21)
+skinSurface = vtk.vtkContourFilter()
+skinSurface.SetInputConnection(imageData)
+skinSurface.SetValue(0, 40)
 skinSurface.ComputeScalarsOff()
 skinSurface.Update()
-
-'''
-resample = vtk.vtkImageResample()
-resample.SetInputData(skinSurface.GetOutput())
-resample.SetDimensionality(3)
-resample.SetMagnificationFactors(0.5, 0.5, 0.5)
-'''
 
 # création des mappers
 boneMapper = vtk.vtkPolyDataMapper()
@@ -55,13 +56,13 @@ skinMapper.SetInputConnection(skinSurface.GetOutputPort())
 boneActor = vtk.vtkActor()
 boneActor.SetMapper(boneMapper)
 boneActor.GetProperty().SetPointSize(3)
-boneActor.GetProperty().SetColor(0.9, 0.9, 0.9)
+boneActor.GetProperty().SetColor(BONE_COLOR)
 boneActor.GetProperty().SetAmbient(0.4)
 
 skinActor = vtk.vtkActor()
 skinActor.SetMapper(skinMapper)
 skinActor.GetProperty().SetPointSize(3)
-skinActor.GetProperty().SetColor(0.8, 0.3, 0.3)
+skinActor.GetProperty().SetColor(SKIN_COLOR)
 skinActor.GetProperty().SetAmbient(0.4)
 
 # calcul de la taille du cube en fonction des limites de la peau
@@ -92,7 +93,7 @@ actorGrillage.SetMapper(mapperGrillage)
 actorGrillage.GetProperty().SetColor(0,0,0)
 
 # création des anneaux
-NUMBER_OF_RING = 19
+NUMBER_OF_RING = int(zLength / 10)
 WIDTH_OF_RING = 1
 
 plane = vtk.vtkPlane()
@@ -116,7 +117,7 @@ cutterMapper = vtk.vtkPolyDataMapper()
 cutterMapper.SetInputConnection(tubeFilter.GetOutputPort())
 
 planeActor = vtk.vtkActor()
-planeActor.GetProperty().SetColor(0.8, 0.3, 0.3)
+planeActor.GetProperty().SetColor(SKIN_COLOR)
 planeActor.GetProperty().SetLineWidth(WIDTH_OF_RING)
 planeActor.SetMapper(cutterMapper)
 
@@ -149,18 +150,18 @@ clipMapper.ScalarVisibilityOff()
 
 clippedSkinActor = vtk.vtkActor()
 clippedSkinActor.SetMapper(clipMapper)
-clippedSkinActor.GetProperty().SetColor(0.8, 0.3, 0.3)
+clippedSkinActor.GetProperty().SetColor(SKIN_COLOR)
 
 # ajout de la transparence sur la peau clippée (uniquement à l'avant)
 frontProp = vtk.vtkProperty()
 frontProp.SetOpacity(0.4)
-frontProp.SetColor(0.3, 0.8, 0.3)
+frontProp.SetColor(SKIN_COLOR)
 frontProp.BackfaceCullingOff()
 frontProp.FrontfaceCullingOff()
 
 backProp = vtk.vtkProperty()
 backProp.SetOpacity(0.99)
-backProp.SetColor(0.3, 0.3, 0.8)
+backProp.SetColor(SKIN_COLOR)
 backProp.BackfaceCullingOn()
 backProp.FrontfaceCullingOn()
 
@@ -174,21 +175,21 @@ clippedTransparentSkinActor.SetProperty(frontProp)
 clippedTransparentSkinActor.SetBackfaceProperty(backProp)
 
 # coloration de l'os selon la distance à la peau
-if os.path.isfile(KNEE_COLOR_FILE) or not(WRITE_FILE):
-    vtkReader = vtk.vtkPolyDataReader()
-    vtkReader = reader.SetFileName(KNEE_COLOR_FILE)
-    boneFilter = reader
+if os.path.isfile(KNEE_COLOR_FILE) and not(WRITE_FILE):
+    vtkReader = vtk.vtkXMLPolyDataReader()
+    vtkReader.SetFileName(KNEE_COLOR_FILE)
+    vtkReader.Update()
+    boneFilter = vtkReader
 else: 
     boneFilter = vtk.vtkDistancePolyDataFilter()
     boneFilter.SetInputConnection(0, boneSurface.GetOutputPort())
     boneFilter.SetInputConnection(1, skinSurface.GetOutputPort())
     boneFilter.Update()
-    
 
-vtkWriter = vtk.vtkPolyDataWriter()
-vtkWriter.SetInputConnection(boneFilter.GetOutputPort())
-vtkWriter.SetFileName(KNEE_COLOR_FILE)
-vtkWriter.Write()
+    vtkWriter = vtk.vtkXMLPolyDataWriter()
+    vtkWriter.SetInputData(boneFilter.GetOutput())
+    vtkWriter.SetFileName(KNEE_COLOR_FILE)
+    vtkWriter.Write()
 
 distanceMapper = vtk.vtkPolyDataMapper()
 distanceMapper.SetInputConnection(boneFilter.GetOutputPort() )
@@ -201,8 +202,8 @@ coloredBoneActor.SetMapper(distanceMapper)
 ringRenderer = newRenderer({planeActor, boneActor, actorGrillage})
 transparentRenderer = newRenderer({clippedTransparentSkinActor, boneActor, actorGrillage, actorSphere})
 normalRenderernderer = newRenderer({clippedSkinActor, boneActor, actorGrillage, actorSphere})
-#proximityRenderer = newRenderer({coloredBoneActor, actorGrillage})
-proximityRenderer = vtk.vtkRenderer()
+proximityRenderer = newRenderer({coloredBoneActor, actorGrillage})
+# proximityRenderer = vtk.vtkRenderer()
 # découpe la fenêtre pour placer les différents rendus
 ringRenderer.SetViewport(0.0, 0.5, 0.5, 1.0)
 transparentRenderer.SetViewport(0.5, 0.5, 1.0, 1.0)
