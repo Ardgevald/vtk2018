@@ -63,13 +63,14 @@ for x in range(0, MAP_SIZE_X):
         vectorUnityLonX = (xBG - xHG) * (y / MAP_SIZE_Y) + (xBD - xBG) * ((MAP_SIZE_Y - y) / MAP_SIZE_Y)
         vectorUnityLonY = (yBD - yHD) * (y / MAP_SIZE_Y) + (yBD - yBG) * ((MAP_SIZE_Y - y) / MAP_SIZE_Y)
 
-        lat = x * vectorUnityLatX + y * vectorUnityLonX
-        lon = x * vectorUnityLatY + y * vectorUnityLonY
+        latSwedish = x * vectorUnityLatX + y * vectorUnityLonX
+        lonSwedish = x * vectorUnityLatY + y * vectorUnityLonY
+        latGlobal, lonGlobal = pyproj.transform(coordinateSwedish,coordinateGlobal,latSwedish,lonSwedish)
 
         alt = mapData[y][x]
 
         points.InsertNextPoint(
             alt,
-            angleToRad(lat),
-            angleToRad(lon)
+            angleToRad(latGlobal),
+            angleToRad(lonGlobal)
         )
