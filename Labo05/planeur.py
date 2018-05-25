@@ -6,7 +6,7 @@ import pyproj
 from math import pi, floor, ceil
 
 # distance de la caméra en proportion du rayon de la terre
-distanceFactor = 1.01
+distanceFactor = 1.015
 
 EARTH_RADIUS = 6371009
 
@@ -65,17 +65,8 @@ scalars.SetNumberOfComponents(1)
 
 vectorUnityLonX = (xBG - xHG) / MAP_SIZE_Y
 vectorUnityLonY = (yBD - yHD) / MAP_SIZE_Y
-
-for lon, y in zip(np.arange(MIN_LONG, MAX_LONG, (MAX_LONG - MIN_LONG) / MAP_REDUCED_SIZE_X), range(MIN_Y, MAX_Y)):
-    for lat, x in zip(np.arange(MIN_LAT, MAX_LAT, (MAX_LAT - MIN_LAT) / MAP_REDUCED_SIZE_Y), range(MIN_X, MAX_X)):
-        if y == MIN_Y and x == MIN_X:
-            print("Min")
-            print(y)
-            print(x)
-        if y == MAX_Y -1 and x == MAX_X -1:
-            print("max")
-            print(y)
-            print(x)
+for lon, y in zip(np.arange(MIN_LONG, MAX_LONG, (MAX_LONG - MIN_LONG) / MAP_REDUCED_SIZE_Y), range(MIN_Y, MAX_Y)):
+    for lat, x in zip(np.arange(MIN_LAT, MAX_LAT, (MAX_LAT - MIN_LAT) / MAP_REDUCED_SIZE_X), range(MIN_X, MAX_X)):
 
         alt = EARTH_RADIUS + mapData[y][x]
         points.InsertNextPoint(
@@ -83,7 +74,7 @@ for lon, y in zip(np.arange(MIN_LONG, MAX_LONG, (MAX_LONG - MIN_LONG) / MAP_REDU
             angleToRad(lat),
             angleToRad(lon)
         )
-        scalars.InsertNextValue(mapData[y % MAP_REDUCED_SIZE_X][y // MAP_REDUCED_SIZE_Y])
+        scalars.InsertNextValue(mapData[x % MAP_REDUCED_SIZE_X][x // MAP_REDUCED_SIZE_Y])
         
 structuredGrid.SetPoints(points)
 structuredGrid.GetPointData().SetScalars(scalars)
