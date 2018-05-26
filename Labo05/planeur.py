@@ -3,7 +3,7 @@ import numpy as np
 import sys
 from dateutil import parser
 import pyproj
-from math import pi, floor, ceil
+from math import pi, floor, ceil, sqrt
 
 # distance de la caméra en proportion du rayon de la terre
 distanceFactor = 1.015
@@ -45,6 +45,34 @@ MAP_REDUCED_SIZE_Y = MAX_Y - MIN_Y
 # transforme un angle en degrés vers des radians
 def angleToRad(angle):
     return angle * pi / 180
+
+# converts physical (x,y) to logical (l,m)
+def XtoL(x,y):
+    #create our polygon
+    px = [xBG, xHG, xHD, xBD]
+    py = [yBG, yHG, yHD, yBD]
+    
+    #compute coefficients
+    A = [[1, 0, 0, 0], [1, 1, 0, 0], [1, 1, 1, 1],[1, 0, 1, 0]]
+    AI = np.linalg.inv(A)
+    a = np.dot(AI, px)
+    b = np.dot(AI, py)
+
+    #quadratic equation coeffs, aa*mm^2+bb*m+cc=0
+    aa = a[3]*b[2] - a[2]*b[3]
+    bb = a[3]*b[0] -a[0]*b[3] + a[1]*b[2] - a[2]*b[1] + x*b[3] - y*a[3]
+    cc = a[1]*b[0] -a[0]*b[1] + x*b[1] - y*a[1]
+ 
+    #compute m = (-b+sqrt(b^2-4ac))/(2a)
+    det = sqrt(bb*bb - 4*aa*cc)
+    m = (-bb+det)/(2*aa)
+ 
+    #compute l
+    l = (x-a[0]-a[2]*m)/(a[1]+a[3]*m)
+    return (l, m)
+
+print(XtoL(0,0))
+print(XtoL(1,1))
 
 gliderCoordinates = np.genfromtxt(GLIDER_FILE_PATH, dtype=[('x', 'i4'),('y', 'i4'), ('alt', 'f4'), ('date', 'U30')], usecols=(1, 2, 3, 4, 5), skip_header=1, names=('x', 'y', 'altitude', 'date'), encoding='utf-8')
 
