@@ -21,15 +21,16 @@ MAP_SIZE_Z = 1
 #how to convert
 coordinateSwedish = pyproj.Proj(init='epsg:3021')
 coordinateGlobal = pyproj.Proj(init='epsg:4326')
-
+def sweToGlo(x, y):
+    return pyproj.transform(coordinateSwedish,coordinateGlobal, x, y)
 ## coordonées des 4 coins (HG = Haut Gauche, BD = Bas Droite)
 xHG, yHG = 1349340, 7022573
 xHD, yHD = 1371573, 7022967
 xBG, yBG = 1349602, 7005969
 xBD, yBD = 1371835, 7006362
 
-MIN_LONG, MIN_LAT = pyproj.transform(coordinateSwedish,coordinateGlobal,min(xHG, xBG), max(yHD, yHG))
-MAX_LONG, MAX_LAT = pyproj.transform(coordinateSwedish,coordinateGlobal, max(xHD, xBD), min(yBD, yBG))
+MIN_LONG, MIN_LAT = sweToGlo(min(xHG, xBG), max(yHD, yHG))
+MAX_LONG, MAX_LAT = sweToGlo(max(xHD, xBD), min(yBD, yBG))
 
 MIN_Y = floor((MIN_LONG - 10) * MAP_SIZE_X/5)
 MAX_Y = ceil((MAX_LONG - 10) * MAP_SIZE_X/5)
@@ -48,9 +49,15 @@ def angleToRad(angle):
 
 # converts physical (x,y) to logical (l,m)
 def XtoL(x,y):
+
+    xbg, ybg = sweToGlo(xBG, yBG)
+    xbd, ybd = sweToGlo(xBD, yBD)
+    xhd, yhd = sweToGlo(xHD, yHD)
+    xhg, yhg = sweToGlo(xHG, yHG)
+
     #create our polygon
-    px = [xBG, xBD, xHD, xHG]
-    py = [yBG, yBD, yHD, yHG]
+    px = [xbg, xbd, xhd, xhg]
+    py = [ybg, ybd, yhd, yhg]
     
     #compute coefficients
     A = [[1, 0, 0, 0], [1, 1, 0, 0], [1, 1, 1, 1],[1, 0, 1, 0]]
@@ -71,9 +78,6 @@ def XtoL(x,y):
     l = (x-a[0]-a[2]*m)/(a[1]+a[3]*m)
     return (l, 1 - m)
 
-print(XtoL(xHG,yHG))
-print(XtoL(xBD,yBD))
-
 gliderCoordinates = np.genfromtxt(GLIDER_FILE_PATH, dtype=[('x', 'i4'),('y', 'i4'), ('alt', 'f4'), ('date', 'U30')], usecols=(1, 2, 3, 4, 5), skip_header=1, names=('x', 'y', 'altitude', 'date'), encoding='utf-8')
 
 mapData = np.fromfile(MAP_FILE_PATH, dtype=np.int16)
@@ -89,25 +93,22 @@ points.Allocate(MAP_REDUCED_SIZE_X * MAP_REDUCED_SIZE_Y)
 
 
 #prise en compte de l'altitude
-scalars = vtk.vtkIntArray()
-scalars.SetNumberOfComponents(1)
+scalars = vtk.vtkFloatArray()
+scalars.SetNumberOfComponents(2)
 
-vectorUnityLonX = (xBG - xHG) / MAP_SIZE_Y
-vectorUnityLonY = (yBD - yHD) / MAP_SIZE_Y
-
-
-for lon, y in zip(np.linspace(MIN_LONG, MAX_LONG, MAP_REDUCED_SIZE_X), range(MIN_X, MAX_X)):
-    for lat, x in zip(np.linspace(MIN_LAT, MAX_LAT, MAP_REDUCED_SIZE_Y), range(MIN_Y, MAX_Y)):
+for lat, y in zip(np.linspace(MIN_LAT, MAX_LAT, MAP_REDUCED_SIZE_X)[::-1], range(MIN_X, MAX_X)):
+    for lon, x in zip(np.linspace(MIN_LONG, MAX_LONG, MAP_REDUCED_SIZE_Y), range(MIN_Y, MAX_Y)):
         alt = EARTH_RADIUS + mapData[y][x]
         points.InsertNextPoint(
             alt,
             angleToRad(lat),
             angleToRad(lon)
         )
-        scalars.InsertNextValue(mapData[y][x])
+        
+        scalars.InsertNextTuple(XtoL(lon, lat))
         
 structuredGrid.SetPoints(points)
-structuredGrid.GetPointData().SetScalars(scalars)
+structuredGrid.GetPointData().SetTCoords(scalars)
 
 geometryFilter = vtk.vtkStructuredGridGeometryFilter()
 geometryFilter.SetInputData(structuredGrid)
@@ -124,8 +125,6 @@ transformFilter.Update()
 
 mapMapper = vtk.vtkPolyDataMapper()
 mapMapper.SetInputConnection(transformFilter.GetOutputPort())
-mapMapper.ScalarVisibilityOn()
-mapMapper.SetScalarModeToUsePointData()
 
 #mapping des points pour la texture
 mappedPoints = vtk.vtkJPEGReader()
@@ -134,8 +133,9 @@ mappedPoints.SetFileName(TEXTURE_FILE_PATH)
 #création de la texture
 texture = vtk.vtkTexture()
 texture.SetInputConnection(mappedPoints.GetOutputPort())
-texture.InterpolateOff()
+texture.InterpolateOn()
 texture.RepeatOff()
+texture.EdgeClampOff()
 
 mapActor = vtk.vtkActor()
 mapActor.SetMapper(mapMapper)
@@ -159,7 +159,6 @@ tf.TransformPoint(cameraPosIn, cameraPosOut)
 camera = vtk.vtkCamera()
 camera.SetPosition(cameraPosOut)
 camera.SetFocalPoint(mapActor.GetCenter())
-camera.Roll(-90)
 ren1.SetActiveCamera(camera)
 ren1.ResetCameraClippingRange()
 
