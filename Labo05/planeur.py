@@ -81,8 +81,12 @@ print(MAX_LAT)
 
 vectorUnityLonX = (xBG - xHG) / MAP_SIZE_Y
 vectorUnityLonY = (yBD - yHD) / MAP_SIZE_Y
-for lon, y in zip(np.arange(MIN_LONG, MAX_LONG, (MAX_LONG - MIN_LONG) / float(MAP_REDUCED_SIZE_X)), range(MIN_Y, MAX_Y)):
-    for lat, x in zip(np.arange(MIN_LAT, MAX_LAT, (MAX_LAT - MIN_LAT) / float(MAP_REDUCED_SIZE_Y)), range(MIN_X, MAX_X)):
+
+print(np.linspace(MIN_LONG, MAX_LONG, MAP_REDUCED_SIZE_X), range(MIN_Y, MAX_Y))
+
+
+for lon, y in zip(np.linspace(MIN_LONG, MAX_LONG, MAP_REDUCED_SIZE_X), range(MIN_X, MAX_X)):
+    for lat, x in zip(np.linspace(MIN_LAT, MAX_LAT, MAP_REDUCED_SIZE_Y), range(MIN_Y, MAX_Y)):
         if x == MIN_X and y == MIN_Y:
             print('min')
             print(lon)
