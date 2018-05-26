@@ -92,9 +92,19 @@ points = vtk.vtkPoints()
 points.Allocate(MAP_REDUCED_SIZE_X * MAP_REDUCED_SIZE_Y)
 
 
+colorsArray = vtk.vtkLookupTable()
+colorsArray.SetRange(0, 1)
+colorsArray.SetNumberOfTableValues(2)
+colorsArray.SetTableValue(0, 1.0, 1.0, 1.0, 1.0)
+colorsArray.SetTableValue(1, 0.0, 0.0, 0.0, 0.0)
+colorsArray.Build()
+
 #prise en compte de l'altitude
 scalars = vtk.vtkFloatArray()
 scalars.SetNumberOfComponents(2)
+
+scalarsColor = vtk.vtkIntArray()
+scalarsColor.SetNumberOfComponents(1)
 
 for lat, y in zip(np.linspace(MIN_LAT, MAX_LAT, MAP_REDUCED_SIZE_X)[::-1], range(MIN_X, MAX_X)):
     for lon, x in zip(np.linspace(MIN_LONG, MAX_LONG, MAP_REDUCED_SIZE_Y), range(MIN_Y, MAX_Y)):
@@ -102,13 +112,19 @@ for lat, y in zip(np.linspace(MIN_LAT, MAX_LAT, MAP_REDUCED_SIZE_X)[::-1], range
         points.InsertNextPoint(
             alt,
             angleToRad(lat),
-            angleToRad(lon)
+            angleToRad(lon * 0.5)
         )
         
         scalars.InsertNextTuple(XtoL(lon, lat))
+        xL, yL = XtoL(lon, lat)
+        if(xL < 0 or xL > 1 or yL < 0 or yL > 1):
+            scalarsColor.InsertNextValue(1)
+        else:
+            scalarsColor.InsertNextValue(0)
         
 structuredGrid.SetPoints(points)
 structuredGrid.GetPointData().SetTCoords(scalars)
+structuredGrid.GetPointData().SetScalars(scalarsColor)
 
 geometryFilter = vtk.vtkStructuredGridGeometryFilter()
 geometryFilter.SetInputData(structuredGrid)
@@ -125,6 +141,10 @@ transformFilter.Update()
 
 mapMapper = vtk.vtkPolyDataMapper()
 mapMapper.SetInputConnection(transformFilter.GetOutputPort())
+mapMapper.ScalarVisibilityOn()
+mapMapper.SetScalarModeToUsePointData()
+mapMapper.SetColorModeToMapScalars()
+mapMapper.SetLookupTable(colorsArray)
 
 #mapping des points pour la texture
 mappedPoints = vtk.vtkJPEGReader()
@@ -135,7 +155,7 @@ texture = vtk.vtkTexture()
 texture.SetInputConnection(mappedPoints.GetOutputPort())
 texture.InterpolateOn()
 texture.RepeatOff()
-texture.EdgeClampOff()
+texture.EdgeClampOn()
 
 mapActor = vtk.vtkActor()
 mapActor.SetMapper(mapMapper)
@@ -158,6 +178,7 @@ tf.TransformPoint(cameraPosIn, cameraPosOut)
 
 camera = vtk.vtkCamera()
 camera.SetPosition(cameraPosOut)
+camera.Roll(-90)
 camera.SetFocalPoint(mapActor.GetCenter())
 ren1.SetActiveCamera(camera)
 ren1.ResetCameraClippingRange()
