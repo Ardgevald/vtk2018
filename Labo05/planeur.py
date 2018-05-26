@@ -49,8 +49,8 @@ def angleToRad(angle):
 # converts physical (x,y) to logical (l,m)
 def XtoL(x,y):
     #create our polygon
-    px = [xBG, xHG, xHD, xBD]
-    py = [yBG, yHG, yHD, yBD]
+    px = [xBG, xBD, xHD, xHG]
+    py = [yBG, yBD, yHD, yHG]
     
     #compute coefficients
     A = [[1, 0, 0, 0], [1, 1, 0, 0], [1, 1, 1, 1],[1, 0, 1, 0]]
@@ -69,10 +69,10 @@ def XtoL(x,y):
  
     #compute l
     l = (x-a[0]-a[2]*m)/(a[1]+a[3]*m)
-    return (l, m)
+    return (l, 1 - m)
 
-print(XtoL(0,0))
-print(XtoL(1,1))
+print(XtoL(xHG,yHG))
+print(XtoL(xBD,yBD))
 
 gliderCoordinates = np.genfromtxt(GLIDER_FILE_PATH, dtype=[('x', 'i4'),('y', 'i4'), ('alt', 'f4'), ('date', 'U30')], usecols=(1, 2, 3, 4, 5), skip_header=1, names=('x', 'y', 'altitude', 'date'), encoding='utf-8')
 
