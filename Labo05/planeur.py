@@ -23,12 +23,14 @@ coordinateGlobal = pyproj.Proj(init='epsg:4326')
 
 ## coordonées des 4 coins (HG = Haut Gauche, BD = Bas Droite)
 xHG, yHG = 1349340, 7022573
+print(pyproj.transform(coordinateSwedish,coordinateGlobal,xHG, yHG))
 xHD, yHD = 1371573, 7022967
 xBG, yBG = 1349602, 7005969
 xBD, yBD = 1371835, 7006362
+print(pyproj.transform(coordinateSwedish,coordinateGlobal,xBD, yBD))
 
-MIN_LONG, MIN_LAT = pyproj.transform(coordinateSwedish,coordinateGlobal,min(xHG, xBG), min(yHD, yHG))
-MAX_LONG, MAX_LAT = pyproj.transform(coordinateSwedish,coordinateGlobal, max(xHD, xBD), max(yBD, yBG))
+MIN_LONG, MIN_LAT = pyproj.transform(coordinateSwedish,coordinateGlobal,min(xHG, xBG), max(yHD, yHG))
+MAX_LONG, MAX_LAT = pyproj.transform(coordinateSwedish,coordinateGlobal, max(xHD, xBD), min(yBD, yBG))
 
 MIN_X = floor((MIN_LONG - 10) * MAP_SIZE_X/5)
 MAX_X = ceil((MAX_LONG - 10) * MAP_SIZE_X/5)
@@ -40,6 +42,9 @@ MEAN_LAT = np.mean([MIN_LAT, MAX_LAT])
 
 MAP_REDUCED_SIZE_X = MAX_X - MIN_X
 MAP_REDUCED_SIZE_Y = MAX_Y - MIN_Y
+
+print(MAP_REDUCED_SIZE_X)
+print(MAP_REDUCED_SIZE_Y)
 
 # transforme un angle en degrés vers des radians
 def angleToRad(angle):
@@ -53,7 +58,7 @@ mapData = mapData.reshape(MAP_SIZE_X, MAP_SIZE_Y)
 
 #création de la map
 structuredGrid = vtk.vtkStructuredGrid()
-structuredGrid.SetDimensions([MAP_REDUCED_SIZE_X, MAP_REDUCED_SIZE_Y, 1])
+structuredGrid.SetDimensions([MAP_REDUCED_SIZE_Y, MAP_REDUCED_SIZE_X, 1])
 
 points = vtk.vtkPoints()
 points.Allocate(MAP_REDUCED_SIZE_X * MAP_REDUCED_SIZE_Y)
@@ -63,18 +68,39 @@ points.Allocate(MAP_REDUCED_SIZE_X * MAP_REDUCED_SIZE_Y)
 scalars = vtk.vtkIntArray()
 scalars.SetNumberOfComponents(1)
 
+print(MIN_Y)
+print(MIN_LONG)
+print(MAX_Y)
+print(MAX_LONG)
+print(MIN_X)
+print(MIN_LAT)
+print(MAX_X)
+print(MAX_LAT)
+
+
+
 vectorUnityLonX = (xBG - xHG) / MAP_SIZE_Y
 vectorUnityLonY = (yBD - yHD) / MAP_SIZE_Y
-for lon, y in zip(np.arange(MIN_LONG, MAX_LONG, (MAX_LONG - MIN_LONG) / MAP_REDUCED_SIZE_Y), range(MIN_Y, MAX_Y)):
-    for lat, x in zip(np.arange(MIN_LAT, MAX_LAT, (MAX_LAT - MIN_LAT) / MAP_REDUCED_SIZE_X), range(MIN_X, MAX_X)):
+for lon, y in zip(np.arange(MIN_LONG, MAX_LONG, (MAX_LONG - MIN_LONG) / float(MAP_REDUCED_SIZE_X)), range(MIN_Y, MAX_Y)):
+    for lat, x in zip(np.arange(MIN_LAT, MAX_LAT, (MAX_LAT - MIN_LAT) / float(MAP_REDUCED_SIZE_Y)), range(MIN_X, MAX_X)):
+        if x == MIN_X and y == MIN_Y:
+            print('min')
+            print(lon)
+            print(MIN_LONG)
+            print(MIN_LAT)
 
+        if x == MAX_X - 1 and y == MAX_Y - 1:
+            print('max')
+            print(lon)
+            print(MAX_LONG)
+            print(MAX_LAT)
         alt = EARTH_RADIUS + mapData[y][x]
         points.InsertNextPoint(
             alt,
             angleToRad(lat),
             angleToRad(lon)
         )
-        scalars.InsertNextValue(mapData[x % MAP_REDUCED_SIZE_X][x // MAP_REDUCED_SIZE_Y])
+        scalars.InsertNextValue(mapData[y][x])
         
 structuredGrid.SetPoints(points)
 structuredGrid.GetPointData().SetScalars(scalars)
