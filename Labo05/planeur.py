@@ -29,6 +29,9 @@ xHD, yHD = 1371573, 7022967
 xBG, yBG = 1349602, 7005969
 xBD, yBD = 1371835, 7006362
 
+MIN_LONG_SWE, MIN_LAT_SWE = min(xHG, xBG), max(yHD, yHG)
+MAX_LONG_SWE, MAX_LAT_SWE = max(xHD, xBD), min(yBD, yBG)
+
 MIN_LONG, MIN_LAT = sweToGlo(min(xHG, xBG), max(yHD, yHG))
 MAX_LONG, MAX_LAT = sweToGlo(max(xHD, xBD), min(yBD, yBG))
 
@@ -56,8 +59,8 @@ def XtoL(x,y):
     xhg, yhg = sweToGlo(xHG, yHG)
 
     #create our polygon
-    px = [xbg, xbd, xhd, xhg]
-    py = [ybg, ybd, yhd, yhg]
+    px = [xBG, xBD, xHD, xHG]
+    py = [yBG, yBD, yHD, yHG]
     
     #compute coefficients
     A = [[1, 0, 0, 0], [1, 1, 0, 0], [1, 1, 1, 1],[1, 0, 1, 0]]
@@ -106,13 +109,16 @@ scalars.SetNumberOfComponents(2)
 scalarsColor = vtk.vtkIntArray()
 scalarsColor.SetNumberOfComponents(1)
 
-for lat, y in zip(np.linspace(MIN_LAT, MAX_LAT, MAP_REDUCED_SIZE_X)[::-1], range(MIN_X, MAX_X)):
-    for lon, x in zip(np.linspace(MIN_LONG, MAX_LONG, MAP_REDUCED_SIZE_Y), range(MIN_Y, MAX_Y)):
+for lat, y in zip(np.linspace(MIN_LAT_SWE, MAX_LAT_SWE, MAP_REDUCED_SIZE_X)[::-1], range(MIN_X, MAX_X)):
+    for lon, x in zip(np.linspace(MIN_LONG_SWE, MAX_LONG_SWE, MAP_REDUCED_SIZE_Y), range(MIN_Y, MAX_Y)):
         alt = EARTH_RADIUS + mapData[y][x]
+
+        newLon, newLat = sweToGlo(lon, lat)
+
         points.InsertNextPoint(
             alt,
-            angleToRad(lat),
-            angleToRad(lon * 0.5)
+            angleToRad(newLat),
+            angleToRad(newLon * 0.5)
         )
         
         scalars.InsertNextTuple(XtoL(lon, lat))
@@ -161,9 +167,11 @@ mapActor = vtk.vtkActor()
 mapActor.SetMapper(mapMapper)
 mapActor.SetTexture(texture)
 
+
 ren1 = vtk.vtkRenderer()
 ren1.AddActor(mapActor)
 ren1.SetBackground(0.1, 0.2, 0.4)
+ren1.SetUseFXAA(True)
 
 renWin = vtk.vtkRenderWindow()
 renWin.AddRenderer(ren1)
