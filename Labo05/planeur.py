@@ -2,6 +2,7 @@ import vtk
 import numpy as np
 import sys
 from dateutil import parser
+from datetime import datetime
 import pyproj
 from math import pi, floor, ceil, sqrt
 
@@ -109,16 +110,68 @@ scalars.SetNumberOfComponents(2)
 scalarsColor = vtk.vtkIntArray()
 scalarsColor.SetNumberOfComponents(1)
 
+#création des gliders
+origin = vtk.vtkPointSource()
+origin.SetNumberOfPoints(100)
+origin.SetRadius(15)
+
+pointsGlider = vtk.vtkPoints()
+pointsGlider.Allocate(len(gliderCoordinates))
+
+scalarsVectors = vtk.vtkFloatArray()
+scalarsVectors.SetNumberOfComponents(1)
+
+first = True
+previousDate = 0
+for lon, lat, alt, date in gliderCoordinates:
+    alt = EARTH_RADIUS + alt
+    newLon, newLat = sweToGlo(lon, lat)
+    newDate = datetime.strptime(date, '%m/%y/%d_%H:%M:%S')
+    if not first :
+        vectorSize = (newDate - previousDate).total_seconds()
+        scalarsVectors.InsertNextValue(vectorSize)
+    else:
+        scalarsVectors.InsertNextValue(0.0)
+        origin.SetCenter(angleToRad(newLon),angleToRad(newLat),alt)
+
+    pointsGlider.InsertNextPoint(
+        alt,
+        angleToRad(newLat),
+        angleToRad(newLon)
+    )
+    previousDate = newDate
+    first = False
+
+structuredGridGlider = vtk.vtkStructuredGrid()
+structuredGridGlider.SetDimensions([len(gliderCoordinates), 1, 1])
+structuredGridGlider.SetPoints(pointsGlider)
+structuredGridGlider.GetPointData().SetScalars(scalarsVectors)
+
+streamline = vtk.vtkStreamTracer()
+streamline.SetInputData(structuredGridGlider)
+streamline.SetSourceConnection(origin.GetOutputPort())
+streamline.SetMaximumPropagation(100)
+streamline.SetInitialIntegrationStep(.2)
+streamline.SetIntegrationDirectionToForward()
+streamline.SetComputeVorticity(1)
+rk4 = vtk.vtkRungeKutta4()
+streamline.SetIntegrator(rk4)
+
+streamline_mapper = vtk.vtkPolyDataMapper()
+streamline_mapper.SetInputConnection(streamline.GetOutputPort())
+
+streamline_actor = vtk.vtkActor()
+streamline_actor.SetMapper(streamline_mapper)
+streamline_actor.VisibilityOn()
+
 for lat, y in zip(np.linspace(MIN_LAT_SWE, MAX_LAT_SWE, MAP_REDUCED_SIZE_X)[::-1], range(MIN_X, MAX_X)):
     for lon, x in zip(np.linspace(MIN_LONG_SWE, MAX_LONG_SWE, MAP_REDUCED_SIZE_Y), range(MIN_Y, MAX_Y)):
         alt = EARTH_RADIUS + mapData[y][x]
-
         newLon, newLat = sweToGlo(lon, lat)
-
         points.InsertNextPoint(
             alt,
             angleToRad(newLat),
-            angleToRad(newLon * 0.5)
+            angleToRad(newLon)
         )
         
         scalars.InsertNextTuple(XtoL(lon, lat))
@@ -159,17 +212,16 @@ mappedPoints.SetFileName(TEXTURE_FILE_PATH)
 #création de la texture
 texture = vtk.vtkTexture()
 texture.SetInputConnection(mappedPoints.GetOutputPort())
-texture.InterpolateOn()
+texture.InterpolateOff()
 texture.RepeatOff()
-texture.EdgeClampOn()
 
 mapActor = vtk.vtkActor()
 mapActor.SetMapper(mapMapper)
 mapActor.SetTexture(texture)
 
-
 ren1 = vtk.vtkRenderer()
 ren1.AddActor(mapActor)
+ren1.AddActor(streamline_actor)
 ren1.SetBackground(0.1, 0.2, 0.4)
 ren1.SetUseFXAA(True)
 
