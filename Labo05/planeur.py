@@ -116,39 +116,60 @@ origin.SetNumberOfPoints(100)
 origin.SetRadius(15)
 
 pointsGlider = vtk.vtkPoints()
-pointsGlider.Allocate(len(gliderCoordinates))
+pointsGlider.Allocate(len(gliderCoordinates) - 1)
 
-scalarsVectors = vtk.vtkFloatArray()
-scalarsVectors.SetNumberOfComponents(1)
+deltaTime = vtk.vtkIntArray()
+deltaTime.SetNumberOfComponents(1)
+
+vectorsArray = vtk.vtkFloatArray()
+vectorsArray.SetNumberOfComponents(3)
 
 first = True
 previousDate = 0
+previousAlt = 0
+previousLon = 0
+previousLat = 0
+cpt = 0
 for lon, lat, alt, date in gliderCoordinates:
     alt = EARTH_RADIUS + alt
     newLon, newLat = sweToGlo(lon, lat)
     newDate = datetime.strptime(date, '%m/%y/%d_%H:%M:%S')
     if not first :
         vectorSize = (newDate - previousDate).total_seconds()
-        scalarsVectors.InsertNextValue(vectorSize)
+        deltaTime.InsertNextValue(floor(vectorSize))
+        vectorsArray.InsertNextTuple(((newLon - previousLon)/vectorSize, (newLat - previousLat)/vectorSize, (alt - previousAlt)/vectorSize ))
+        pointsGlider.InsertNextPoint(
+            alt,
+            angleToRad(newLat),
+            angleToRad(newLon)
+        )
+        print(f"id: {cpt}")
+        print(f"deltaTime : {vectorSize}")
+        print(f"position x/y/z: {angleToRad(newLon)}/{angleToRad(newLat)}/{alt}")
+        print(f"vecteur de movement x/y/z: {(newLon - previousLon)/vectorSize}/{(newLat - previousLat)/vectorSize}/{(alt - previousAlt)/vectorSize} ")
     else:
-        scalarsVectors.InsertNextValue(0.0)
+        deltaTime.InsertNextValue(0)
         origin.SetCenter(angleToRad(newLon),angleToRad(newLat),alt)
-
-    pointsGlider.InsertNextPoint(
-        alt,
-        angleToRad(newLat),
-        angleToRad(newLon)
-    )
+    
     previousDate = newDate
+    previousAlt = alt
+    previousLon = lon
+    previousLat = lat
     first = False
+    cpt = cpt + 1
 
 structuredGridGlider = vtk.vtkStructuredGrid()
 structuredGridGlider.SetDimensions([len(gliderCoordinates), 1, 1])
 structuredGridGlider.SetPoints(pointsGlider)
-structuredGridGlider.GetPointData().SetScalars(scalarsVectors)
+structuredGridGlider.GetPointData().SetScalars(deltaTime)
+structuredGridGlider.GetPointData().SetVectors(vectorsArray)
+
+filterCellToData = vtk.vtkCellDataToPointData()
+filterCellToData.SetInputData(structuredGridGlider)
+filterCellToData.Update()
 
 streamline = vtk.vtkStreamTracer()
-streamline.SetInputData(structuredGridGlider)
+streamline.SetInputData(filterCellToData.GetOutput())
 streamline.SetSourceConnection(origin.GetOutputPort())
 streamline.SetMaximumPropagation(100)
 streamline.SetInitialIntegrationStep(.2)
@@ -156,9 +177,15 @@ streamline.SetIntegrationDirectionToForward()
 streamline.SetComputeVorticity(1)
 rk4 = vtk.vtkRungeKutta4()
 streamline.SetIntegrator(rk4)
+streamline.DebugOn()
+streamline.Update()
 
 streamline_mapper = vtk.vtkPolyDataMapper()
 streamline_mapper.SetInputConnection(streamline.GetOutputPort())
+streamline_mapper.ScalarVisibilityOn()
+streamline_mapper.SetScalarRange(0, 1500)
+streamline_mapper.SetScalarModeToUsePointFieldData()
+streamline_mapper.ColorByArrayComponent("VelocityMagnitude", 0)
 
 streamline_actor = vtk.vtkActor()
 streamline_actor.SetMapper(streamline_mapper)
@@ -168,6 +195,9 @@ for lat, y in zip(np.linspace(MIN_LAT_SWE, MAX_LAT_SWE, MAP_REDUCED_SIZE_X)[::-1
     for lon, x in zip(np.linspace(MIN_LONG_SWE, MAX_LONG_SWE, MAP_REDUCED_SIZE_Y), range(MIN_Y, MAX_Y)):
         alt = EARTH_RADIUS + mapData[y][x]
         newLon, newLat = sweToGlo(lon, lat)
+
+        #print(f"position x/y/z: {angleToRad(newLon)}/{angleToRad(newLat)}/{alt}")
+        
         points.InsertNextPoint(
             alt,
             angleToRad(newLat),
