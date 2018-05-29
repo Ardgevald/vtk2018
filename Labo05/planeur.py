@@ -111,10 +111,6 @@ scalarsColor = vtk.vtkIntArray()
 scalarsColor.SetNumberOfComponents(1)
 
 #création des gliders
-origin = vtk.vtkPointSource()
-origin.SetNumberOfPoints(100)
-origin.SetRadius(15)
-
 pointsGlider = vtk.vtkPoints()
 pointsGlider.Allocate(len(gliderCoordinates) - 1)
 
@@ -149,7 +145,7 @@ for lon, lat, alt, date in gliderCoordinates:
         print(f"vecteur de movement x/y/z: {(newLon - previousLon)/vectorSize}/{(newLat - previousLat)/vectorSize}/{(alt - previousAlt)/vectorSize} ")
     else:
         deltaTime.InsertNextValue(0)
-        origin.SetCenter(angleToRad(newLon),angleToRad(newLat),alt)
+        origin = [alt,angleToRad(newLat),angleToRad(newLon)]
     
     previousDate = newDate
     previousAlt = alt
@@ -159,26 +155,51 @@ for lon, lat, alt, date in gliderCoordinates:
     cpt = cpt + 1
 
 structuredGridGlider = vtk.vtkStructuredGrid()
-structuredGridGlider.SetDimensions([len(gliderCoordinates), 1, 1])
+structuredGridGlider.SetDimensions([len(gliderCoordinates) - 1, 1, 1])
 structuredGridGlider.SetPoints(pointsGlider)
 structuredGridGlider.GetPointData().SetScalars(deltaTime)
 structuredGridGlider.GetPointData().SetVectors(vectorsArray)
 
+print(structuredGridGlider.GetPoints())
+'''
 filterCellToData = vtk.vtkCellDataToPointData()
 filterCellToData.SetInputData(structuredGridGlider)
+filterCellToData.PassCellDataOn()	
 filterCellToData.Update()
 
+print(filterCellToData.GetPassCellData())
+'''
+
 streamline = vtk.vtkStreamTracer()
-streamline.SetInputData(filterCellToData.GetOutput())
-streamline.SetSourceConnection(origin.GetOutputPort())
+streamline.SetInputData(structuredGridGlider)
+streamline.SetStartPosition(origin)
+streamline.SetInterpolatorTypeToDataSetPointLocator()
+streamline.SetTerminalSpeed(0)
+streamline.SetMaximumNumberOfSteps(100)
+'''
+streamline.SetMinimumIntegrationStep(10)
+streamline.SetMaximumIntegrationStep(100)
+streamline.SetInitialIntegrationStep(300)	
 streamline.SetMaximumPropagation(100)
+streamline.SetRotationScale(20)
+streamline.SurfaceStreamlinesOff()
+streamline.SetTerminalSpeed(0)
+streamline.SetMaximumNumberOfSteps(100)
+streamline.SetMaximumError(30000)
+streamline.Update()
+
 streamline.SetInitialIntegrationStep(.2)
 streamline.SetIntegrationDirectionToForward()
 streamline.SetComputeVorticity(1)
 rk4 = vtk.vtkRungeKutta4()
 streamline.SetIntegrator(rk4)
 streamline.DebugOn()
-streamline.Update()
+
+print(streamline.GetStartPosition ())
+
+tubeFilter = vtk.vtkTubeFilter()
+tubeFilter.SetInputConnection(streamline.GetOutputPort())
+tubeFilter.SetRadius(20)'''
 
 streamline_mapper = vtk.vtkPolyDataMapper()
 streamline_mapper.SetInputConnection(streamline.GetOutputPort())
