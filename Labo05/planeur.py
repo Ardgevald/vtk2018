@@ -171,7 +171,6 @@ for lon, lat, alt, date in gliderCoordinates:
             ((lat - previousLat)/time)**2 +
             ((alt - previousAlt)/time)**2
         ))
-
         #print(f"id: {cpt}")
         #print(f"deltaTime : {vectorSize}")
         #print(f"position x/y/z: {newLon}/{newLat}/{alt}")
@@ -186,8 +185,6 @@ for lon, lat, alt, date in gliderCoordinates:
     previousLat = lat
     first = False
     cpt = cpt + 1
-
-print(speedArray.GetValueRange())
 
 polyLine = vtk.vtkPolyLine()
 polyLine.GetPointIds().SetNumberOfIds(len(gliderCoordinates))
@@ -209,16 +206,26 @@ transformFilter.SetTransform(tf)
 transformFilter.SetInputData(polyData)
 transformFilter.Update()
 
+minSpeed, maxSpeed = speedArray.GetValueRange()
+lookupColor = vtk.vtkLookupTable()
+lookupColor.SetRange(22., 30.)
+lookupColor.SetValueRange(0, 1)
+lookupColor.SetHueRange(0.2, 0.8)
+lookupColor.SetBelowRangeColor(0, 0, 0, 0)
+lookupColor.SetNanColor(0, 0, 0, 0)
+lookupColor.SetAboveRangeColor(0, 0, 0, 0)
+lookupColor.SetScaleToLinear()
+colorsArray.SetUseAboveRangeColor(True)
+colorsArray.SetUseBelowRangeColor(True)
+
 # Setup actor and mapper
 polylineMapper = vtk.vtkPolyDataMapper()
 polylineMapper.SetInputConnection(transformFilter.GetOutputPort())
-polylineMapper.ScalarVisibilityOn()
-polylineMapper.SetScalarModeToUsePointData()
-polylineMapper.SetColorModeToMapScalars()
+polylineMapper.SetLookupTable(lookupColor)
+
 
 polylineActor = vtk.vtkActor()
 polylineActor.SetMapper(polylineMapper)
-polylineActor.GetProperty().SetColor(1.0, 0.0, 0.0)
 
 
 '''application d'une transformation convertissant les altitudes latitudes et longitudes
