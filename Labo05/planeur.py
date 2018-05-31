@@ -6,7 +6,7 @@ import pyproj
 from math import pi, floor, ceil, sqrt
 
 # distance de la caméra en proportion du rayon de la terre
-distanceFactor = 1.015
+distanceFactor = 1.006
 
 EARTH_RADIUS = 6371009
 
@@ -180,7 +180,7 @@ renWin.SetSize(800, 600)
 renWin.Render()
 
 # caméra posée au dessus du centre de la carte
-cameraPosIn = [distanceFactor * EARTH_RADIUS, angleToRad(MEAN_LAT), angleToRad(MEAN_LONG)]
+cameraPosIn = [distanceFactor * EARTH_RADIUS, angleToRad(MEAN_LAT), angleToRad(MEAN_LONG * 0.5)]
 cameraPosOut = [0, 0, 0]
 tf.TransformPoint(cameraPosIn, cameraPosOut)
 
