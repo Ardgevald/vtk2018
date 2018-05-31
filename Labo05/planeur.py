@@ -144,7 +144,7 @@ geometryFilter.SetInputData(structuredGrid)
 pointsGlider = vtk.vtkPoints()
 pointsGlider.Allocate(len(gliderCoordinates))
 
-speedArray = vtk.vtkFloatArray()
+speedArray = vtk.vtkIntArray()
 speedArray.SetNumberOfComponents(1)
 
 first = True
@@ -166,11 +166,11 @@ for lon, lat, alt, date in gliderCoordinates:
 
     if not first:
         time = (newDate - previousDate).total_seconds()
-        speedArray.InsertNextValue(sqrt(
+        speedArray.InsertNextValue(floor(sqrt(
             ((lon - previousLon)/time)**2 +
             ((lat - previousLat)/time)**2 +
             ((alt - previousAlt)/time)**2
-        ))
+        )))
         #print(f"id: {cpt}")
         #print(f"deltaTime : {vectorSize}")
         #print(f"position x/y/z: {newLon}/{newLat}/{alt}")
@@ -208,27 +208,32 @@ transformFilter.Update()
 
 minSpeed, maxSpeed = speedArray.GetValueRange()
 lookupColor = vtk.vtkLookupTable()
-lookupColor.SetRange(minSpeed, 1000000000)
+lookupColor.SetRange(minSpeed, maxSpeed)
 lookupColor.SetValueRange(0, 1)
-lookupColor.SetHueRange(0.1, 0.9)
+lookupColor.SetHueRange(0.2, 0.5)
 lookupColor.SetBelowRangeColor(1, 0, 0, 1)
-lookupColor.SetNanColor(1, 0, 0, 1)
-lookupColor.SetAboveRangeColor(0, 0, 0, 1)
+lookupColor.SetNanColor(0, 1, 0, 1)
+lookupColor.SetAboveRangeColor(0, 0, 1, 1)
 lookupColor.SetScaleToLinear()
 lookupColor.SetUseAboveRangeColor(True)
 lookupColor.SetUseBelowRangeColor(True)
 lookupColor.SetNumberOfTableValues(99)
 lookupColor.Build()
 
+tubeFilter = vtk.vtkTubeFilter()
+tubeFilter.SetInputConnection(transformFilter.GetOutputPort())
+tubeFilter.SetRadius(40)
+
 # Setup actor and mapper
 polylineMapper = vtk.vtkPolyDataMapper()
-polylineMapper.SetInputConnection(transformFilter.GetOutputPort())
+polylineMapper.SetInputConnection(tubeFilter.GetOutputPort())
+polylineMapper.ScalarVisibilityOn()
 polylineMapper.SetLookupTable(lookupColor)
-
+polylineMapper.SetColorModeToMapScalars()
+polylineMapper.SetScalarRange(20, 30)
 
 polylineActor = vtk.vtkActor()
 polylineActor.SetMapper(polylineMapper)
-
 
 '''application d'une transformation convertissant les altitudes latitudes et longitudes
 en coordonnées sur les axes orthogonaux'''
