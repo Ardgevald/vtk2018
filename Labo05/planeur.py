@@ -8,6 +8,8 @@ from math import pi, floor, ceil, sqrt
 # distance de la caméra en proportion du rayon de la terre
 distanceFactor = 1.006
 
+LON_ADAPT = 0.5
+
 EARTH_RADIUS = 6371009
 
 GLIDER_FILE_PATH = "vtkgps.txt"
@@ -36,34 +38,30 @@ xBD, yBD = 1371835, 7006362
 MIN_LONG_SWE, MIN_LAT_SWE = min(xHG, xBG), max(yHD, yHG)
 MAX_LONG_SWE, MAX_LAT_SWE = max(xHD, xBD), min(yBD, yBG)
 
-MIN_LONG, MIN_LAT = sweToGlo(min(xHG, xBG), max(yHD, yHG))
-MAX_LONG, MAX_LAT = sweToGlo(max(xHD, xBD), min(yBD, yBG))
+MIN_LONG, MIN_LAT = sweToGlo(MIN_LONG_SWE, MIN_LAT_SWE)
+MAX_LONG, MAX_LAT = sweToGlo(MAX_LONG_SWE, MAX_LAT_SWE)
 
-MIN_Y = floor((MIN_LONG - 10) * MAP_SIZE_X/5)
-MAX_Y = ceil((MAX_LONG - 10) * MAP_SIZE_X/5)
-MIN_X = floor((MIN_LAT - 65) * MAP_SIZE_Y/-5)
-MAX_X = ceil((MAX_LAT - 65) * MAP_SIZE_Y/-5)
+MIN_X = floor((MIN_LONG - 10) * MAP_SIZE_X/5)
+MAX_X = ceil((MAX_LONG - 10) * MAP_SIZE_X/5)
+MIN_Y = floor((MIN_LAT - 65) * MAP_SIZE_Y/-5)
+MAX_Y = ceil((MAX_LAT - 65) * MAP_SIZE_Y/-5)
 
 MEAN_LONG = np.mean([MIN_LONG, MAX_LONG])
 MEAN_LAT = np.mean([MIN_LAT, MAX_LAT])
 
-MAP_REDUCED_SIZE_X = MAX_X - MIN_X
 MAP_REDUCED_SIZE_Y = MAX_Y - MIN_Y
+MAP_REDUCED_SIZE_X = MAX_X - MIN_X
 
 # transforme un angle en degrés vers des radians
-
-
 def angleToRad(angle):
     return angle * pi / 180
 
 # converts physical (x,y) to logical (l,m)
-
-
 def XtoL(x, y):
 
     # create our polygon
-    px = [xBG, xBD, xHD, xHG]
-    py = [yBG, yBD, yHD, yHG]
+    px = [xHG, xHD, xBD, xBG]
+    py = [yBD, yBG, yHG, yHD]
 
     # compute coefficients
     A = [[1, 0, 0, 0], [1, 1, 0, 0], [1, 1, 1, 1], [1, 0, 1, 0]]
@@ -97,25 +95,14 @@ structuredGrid = vtk.vtkStructuredGrid()
 structuredGrid.SetDimensions([MAP_REDUCED_SIZE_Y, MAP_REDUCED_SIZE_X, 1])
 
 points = vtk.vtkPoints()
-points.Allocate(MAP_REDUCED_SIZE_X * MAP_REDUCED_SIZE_Y)
-
-
-colorsArray = vtk.vtkLookupTable()
-colorsArray.SetRange(0, 1)
-colorsArray.SetNumberOfTableValues(2)
-colorsArray.SetTableValue(0, 1.0, 1.0, 1.0, 1.0)
-colorsArray.SetTableValue(1, 0.0, 0.0, 0.0, 0.0)
-colorsArray.Build()
+points.Allocate(MAP_REDUCED_SIZE_Y * MAP_REDUCED_SIZE_X)
 
 # prise en compte de l'altitude
 scalars = vtk.vtkFloatArray()
 scalars.SetNumberOfComponents(2)
 
-scalarsColor = vtk.vtkIntArray()
-scalarsColor.SetNumberOfComponents(1)
-
-for lat, y in zip(np.linspace(MIN_LAT_SWE, MAX_LAT_SWE, MAP_REDUCED_SIZE_X)[::-1], range(MIN_X, MAX_X)):
-    for lon, x in zip(np.linspace(MIN_LONG_SWE, MAX_LONG_SWE, MAP_REDUCED_SIZE_Y), range(MIN_Y, MAX_Y)):
+for lon, x in zip(np.linspace(MIN_LONG_SWE, MAX_LONG_SWE, MAP_REDUCED_SIZE_X), range(MIN_X, MAX_X)):
+    for lat, y in zip(np.linspace(MIN_LAT_SWE, MAX_LAT_SWE, MAP_REDUCED_SIZE_Y)[::-1], range(MIN_Y, MAX_Y)):
         alt = EARTH_RADIUS + mapData[y][x]
 
         newLon, newLat = sweToGlo(lon, lat)
@@ -123,19 +110,13 @@ for lat, y in zip(np.linspace(MIN_LAT_SWE, MAX_LAT_SWE, MAP_REDUCED_SIZE_X)[::-1
         points.InsertNextPoint(
             alt,
             angleToRad(newLat),
-            angleToRad(newLon * 0.5)
+            angleToRad(newLon * LON_ADAPT)
         )
 
         scalars.InsertNextTuple(XtoL(lon, lat))
-        xL, yL = XtoL(lon, lat)
-        if(xL < 0 or xL > 1 or yL < 0 or yL > 1):
-            scalarsColor.InsertNextValue(1)
-        else:
-            scalarsColor.InsertNextValue(0)
 
 structuredGrid.SetPoints(points)
 structuredGrid.GetPointData().SetTCoords(scalars)
-structuredGrid.GetPointData().SetScalars(scalarsColor)
 
 geometryFilter = vtk.vtkStructuredGridGeometryFilter()
 geometryFilter.SetInputData(structuredGrid)
@@ -144,7 +125,7 @@ geometryFilter.SetInputData(structuredGrid)
 pointsGlider = vtk.vtkPoints()
 pointsGlider.Allocate(len(gliderCoordinates))
 
-speedArray = vtk.vtkIntArray()
+speedArray = vtk.vtkFloatArray()
 speedArray.SetNumberOfComponents(1)
 
 first = True
@@ -161,20 +142,14 @@ for lon, lat, alt, date in gliderCoordinates:
     pointsGlider.InsertNextPoint(
         alt,
         angleToRad(newLat),
-        angleToRad(newLon * 0.5)
+        angleToRad(newLon * LON_ADAPT)
     )
 
     if not first:
         time = (newDate - previousDate).total_seconds()
-        speedArray.InsertNextValue(floor(sqrt(
-            ((lon - previousLon)/time)**2 +
-            ((lat - previousLat)/time)**2 +
-            ((alt - previousAlt)/time)**2
-        )))
-        #print(f"id: {cpt}")
-        #print(f"deltaTime : {vectorSize}")
-        #print(f"position x/y/z: {newLon}/{newLat}/{alt}")
-        #print(f"vecteur de movement x/y/z: {(newLon - previousLon)/vectorSize}/{(newLat - previousLat)/vectorSize}/{(alt - previousAlt)/vectorSize} ")
+        speedArray.InsertNextValue(
+            (alt - previousAlt)/time
+        )
     else:
         speedArray.InsertNextValue(1)
         origin = [alt, angleToRad(newLat), angleToRad(newLon)]
@@ -206,18 +181,23 @@ transformFilter.SetTransform(tf)
 transformFilter.SetInputData(polyData)
 transformFilter.Update()
 
-minSpeed, maxSpeed = speedArray.GetValueRange()
+array = []
+for i in range(len(gliderCoordinates)):
+    array.append(speedArray.GetValue(i))
+
+array.sort()
+minRange = array[floor(len(gliderCoordinates) * 0.1)]
+maxRange = array[floor(len(gliderCoordinates) * 0.9)]
+
+#minSpeed, maxSpeed = speedArray.GetValueRange()
 lookupColor = vtk.vtkLookupTable()
-lookupColor.SetRange(minSpeed, maxSpeed)
-lookupColor.SetValueRange(0, 1)
-lookupColor.SetHueRange(0.2, 0.5)
-lookupColor.SetBelowRangeColor(1, 0, 0, 1)
-lookupColor.SetNanColor(0, 1, 0, 1)
-lookupColor.SetAboveRangeColor(0, 0, 1, 1)
-lookupColor.SetScaleToLinear()
-lookupColor.SetUseAboveRangeColor(True)
-lookupColor.SetUseBelowRangeColor(True)
-lookupColor.SetNumberOfTableValues(99)
+lookupColor.SetRange(minRange, maxRange)
+lookupColor.SetNumberOfTableValues(4)
+lookupColor.SetTableValue(0, [0.0, 0.0, 1.0, 1.0])
+lookupColor.SetTableValue(1, [0.0, 0.7, 1.0, 1.0])
+lookupColor.SetTableValue(2, [1.0, 0.7, 0.0, 1.0])
+lookupColor.SetTableValue(3, [1.0, 0.0, 0.0, 1.0])
+lookupColor.SetNanColor(0, 0, 0, 1)
 lookupColor.Build()
 
 tubeFilter = vtk.vtkTubeFilter()
@@ -229,8 +209,8 @@ polylineMapper = vtk.vtkPolyDataMapper()
 polylineMapper.SetInputConnection(tubeFilter.GetOutputPort())
 polylineMapper.ScalarVisibilityOn()
 polylineMapper.SetLookupTable(lookupColor)
+polylineMapper.SetScalarRange(minRange, maxRange)
 polylineMapper.SetColorModeToMapScalars()
-polylineMapper.SetScalarRange(20, 30)
 
 polylineActor = vtk.vtkActor()
 polylineActor.SetMapper(polylineMapper)
@@ -245,30 +225,50 @@ transformFilter2.Update()
 
 mapMapper = vtk.vtkPolyDataMapper()
 mapMapper.SetInputConnection(transformFilter2.GetOutputPort())
-mapMapper.ScalarVisibilityOn()
-mapMapper.SetScalarModeToUsePointData()
-mapMapper.SetColorModeToMapScalars()
-mapMapper.SetLookupTable(colorsArray)
 
 # mapping des points pour la texture
 mappedPoints = vtk.vtkJPEGReader()
 mappedPoints.SetFileName(TEXTURE_FILE_PATH)
+mappedPoints.Update()
+imageData = mappedPoints.GetOutput()
+imageX, imageY, imageZ = imageData.GetDimensions()
+
+transparentMask = vtk.vtkImageData()
+transparentMask.SetExtent(imageData.GetExtent())
+transparentMask.AllocateScalars(vtk.VTK_UNSIGNED_CHAR, 1)
+
+for x in range(imageX):
+    for y in range(imageY):
+        if x == 0 or y == 0 or x == imageX - 1 or y == imageY - 1:
+            transparentMask.SetScalarComponentFromFloat(x, y, 0, 0, 0)
+        else:
+            transparentMask.SetScalarComponentFromFloat(x, y, 0, 0, 255)
+
+appendComponent = vtk.vtkImageAppendComponents()
+appendComponent.AddInputConnection(mappedPoints.GetOutputPort())
+appendComponent.AddInputData(transparentMask)
 
 # création de la texture
 texture = vtk.vtkTexture()
-texture.SetInputConnection(mappedPoints.GetOutputPort())
+texture.SetInputConnection(appendComponent.GetOutputPort())
 texture.InterpolateOn()
 texture.RepeatOff()
-texture.EdgeClampOn()
 
 mapActor = vtk.vtkActor()
 mapActor.SetMapper(mapMapper)
 mapActor.SetTexture(texture)
 
+# légende pour la lookupTable
+scalarBar = vtk.vtkScalarBarActor()
+scalarBar.SetLookupTable(lookupColor)
+scalarBar.SetTitle("Vertical Speed")
+scalarBar.SetLabelFormat("%4.0f")
+scalarBar.SetVerticalTitleSeparation(30)
 
 ren1 = vtk.vtkRenderer()
 ren1.AddActor(mapActor)
 ren1.AddActor(polylineActor)
+ren1.AddActor(scalarBar)
 ren1.SetBackground(0.1, 0.2, 0.4)
 ren1.SetUseFXAA(True)
 
@@ -280,14 +280,14 @@ renWin.Render()
 
 # caméra posée au dessus du centre de la carte
 cameraPosIn = [distanceFactor * EARTH_RADIUS,
-               angleToRad(MEAN_LAT), angleToRad(MEAN_LONG * 0.5)]
+               angleToRad(MEAN_LAT), angleToRad(MEAN_LONG * LON_ADAPT)]
 cameraPosOut = [0, 0, 0]
 tf.TransformPoint(cameraPosIn, cameraPosOut)
 
 camera = vtk.vtkCamera()
 camera.SetPosition(cameraPosOut)
-camera.Roll(-90)
 camera.SetFocalPoint(mapActor.GetCenter())
+camera.Roll(-90)
 ren1.SetActiveCamera(camera)
 ren1.ResetCameraClippingRange()
 
