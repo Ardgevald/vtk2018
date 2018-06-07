@@ -5,25 +5,38 @@ from datetime import datetime
 import pyproj
 from math import pi, floor, ceil, sqrt
 
+'''
+Dans notre résultat, la carte et le glider ont une différence d'angle de 90°. Cela
+provient certainement de la carte, car les coordonnées glider sont directement affichées
+via leurs coordonnées. Nous n'avons pas réussi à tourner la carte avec ce que nous
+avons fait.
+De plus, la carte et le glider étaient écrasés sur une des dimensions (peut-être 
+à cause du même souci de map), on a alors divisé par un facteur sur l'autre dimension
+pour obtenir une carte plus agréable à regarder.
+'''
+
+
 # distance de la caméra en proportion du rayon de la terre
 distanceFactor = 1.006
 
+# adapte la carte pour un meilleur rendu
 LON_ADAPT = 0.5
 
 EARTH_RADIUS = 6371009
 
+# chemin des fichiers à traiter
 GLIDER_FILE_PATH = "vtkgps.txt"
 MAP_FILE_PATH = "EarthEnv-DEM90_N60E010.bil"
 TEXTURE_FILE_PATH = "glider_map.jpg"
 
+# taille de la carte initiale
 MAP_SIZE_X = 6000
 MAP_SIZE_Y = 6000
 MAP_SIZE_Z = 1
 
-# how to convert
+# convertisseur de coordonées selon la norme Suédoise vers la globale (longitude lattitude)
 coordinateSwedish = pyproj.Proj(init='epsg:3021')
 coordinateGlobal = pyproj.Proj(init='epsg:4326')
-
 
 def sweToGlo(x, y):
     return pyproj.transform(coordinateSwedish, coordinateGlobal, x, y)
@@ -35,20 +48,24 @@ xHD, yHD = 1371573, 7022967
 xBG, yBG = 1349602, 7005969
 xBD, yBD = 1371835, 7006362
 
+# Limites dans chaque direction dans les deux normes
 MIN_LONG_SWE, MIN_LAT_SWE = min(xHG, xBG), max(yHD, yHG)
 MAX_LONG_SWE, MAX_LAT_SWE = max(xHD, xBD), min(yBD, yBG)
 
 MIN_LONG, MIN_LAT = sweToGlo(MIN_LONG_SWE, MIN_LAT_SWE)
 MAX_LONG, MAX_LAT = sweToGlo(MAX_LONG_SWE, MAX_LAT_SWE)
 
+# Limites en coordonnées x, y, entre 0 et 6000
 MIN_X = floor((MIN_LONG - 10) * MAP_SIZE_X/5)
 MAX_X = ceil((MAX_LONG - 10) * MAP_SIZE_X/5)
 MIN_Y = floor((MIN_LAT - 65) * MAP_SIZE_Y/-5)
 MAX_Y = ceil((MAX_LAT - 65) * MAP_SIZE_Y/-5)
 
+# moyenne des longitudes et lattitudes pour la caméra
 MEAN_LONG = np.mean([MIN_LONG, MAX_LONG])
 MEAN_LAT = np.mean([MIN_LAT, MAX_LAT])
 
+# nombre de points du sous-ensemble
 MAP_REDUCED_SIZE_Y = MAX_Y - MIN_Y
 MAP_REDUCED_SIZE_X = MAX_X - MIN_X
 
@@ -56,6 +73,8 @@ MAP_REDUCED_SIZE_X = MAX_X - MIN_X
 def angleToRad(angle):
     return angle * pi / 180
 
+# méthode de conversion reprise et adaptée en python et au problème
+# https://www.particleincell.com/2012/quad-interpolation/
 # converts physical (x,y) to logical (l,m)
 def XtoL(x, y):
 
@@ -82,25 +101,27 @@ def XtoL(x, y):
     l = (x-a[0]-a[2]*m)/(a[1]+a[3]*m)
     return (l, 1 - m)
 
-
+# récupèration des données du glider
 gliderCoordinates = np.genfromtxt(GLIDER_FILE_PATH, dtype=[('x', 'i4'), ('y', 'i4'), ('alt', 'f4'), ('date', 'U30')], usecols=(
     1, 2, 3, 4, 5), skip_header=1, names=('x', 'y', 'altitude', 'date'), encoding='utf-8')
 
+# récupération des données de la carte
 mapData = np.fromfile(MAP_FILE_PATH, dtype=np.int16)
 
 mapData = mapData.reshape(MAP_SIZE_X, MAP_SIZE_Y)
 
-# création de la map
+# création de la carte
 structuredGrid = vtk.vtkStructuredGrid()
 structuredGrid.SetDimensions([MAP_REDUCED_SIZE_Y, MAP_REDUCED_SIZE_X, 1])
 
 points = vtk.vtkPoints()
 points.Allocate(MAP_REDUCED_SIZE_Y * MAP_REDUCED_SIZE_X)
 
-# prise en compte de l'altitude
+# valeurs pour l'application de la texture
 scalars = vtk.vtkFloatArray()
 scalars.SetNumberOfComponents(2)
 
+# parcours des données et création des points
 for lon, x in zip(np.linspace(MIN_LONG_SWE, MAX_LONG_SWE, MAP_REDUCED_SIZE_X), range(MIN_X, MAX_X)):
     for lat, y in zip(np.linspace(MIN_LAT_SWE, MAX_LAT_SWE, MAP_REDUCED_SIZE_Y)[::-1], range(MIN_Y, MAX_Y)):
         alt = EARTH_RADIUS + mapData[y][x]
@@ -128,6 +149,7 @@ pointsGlider.Allocate(len(gliderCoordinates))
 speedArray = vtk.vtkFloatArray()
 speedArray.SetNumberOfComponents(1)
 
+# parcours des données pour générer les points avec vitesse verticale
 first = True
 previousDate = 0
 previousAlt = 0
@@ -161,6 +183,7 @@ for lon, lat, alt, date in gliderCoordinates:
     first = False
     cpt = cpt + 1
 
+# polyline finale
 polyLine = vtk.vtkPolyLine()
 polyLine.GetPointIds().SetNumberOfIds(len(gliderCoordinates))
 for i in range(len(gliderCoordinates)):
@@ -169,18 +192,22 @@ for i in range(len(gliderCoordinates)):
 cells = vtk.vtkCellArray()
 cells.InsertNextCell(polyLine)
 
-# Create a polydata to store everything in
+# Création d'un polydata pour y ajouter la polyline, les points et les vitesses
 polyData = vtk.vtkPolyData()
 polyData.SetPoints(pointsGlider)
 polyData.GetPointData().SetScalars(speedArray)
 polyData.SetLines(cells)
 
+# transformation d'altitude lattitude longitude en coordonnées x, y, z
 tf = vtk.vtkSphericalTransform()
 transformFilter = vtk.vtkTransformPolyDataFilter()
 transformFilter.SetTransform(tf)
 transformFilter.SetInputData(polyData)
 transformFilter.Update()
 
+# obtention des points pour en prendre un sous ensemble
+# de manière à éviter les valeurs atypiques dans la
+# lookuptable
 array = []
 for i in range(len(gliderCoordinates)):
     array.append(speedArray.GetValue(i))
@@ -189,7 +216,7 @@ array.sort()
 minRange = array[floor(len(gliderCoordinates) * 0.1)]
 maxRange = array[floor(len(gliderCoordinates) * 0.9)]
 
-#minSpeed, maxSpeed = speedArray.GetValueRange()
+# table des couleurs
 lookupColor = vtk.vtkLookupTable()
 lookupColor.SetRange(minRange, maxRange)
 lookupColor.SetNumberOfTableValues(4)
@@ -200,11 +227,12 @@ lookupColor.SetTableValue(3, [1.0, 0.0, 0.0, 1.0])
 lookupColor.SetNanColor(0, 0, 0, 1)
 lookupColor.Build()
 
+# filtre pour afficher un tube au lieu de la polyline
 tubeFilter = vtk.vtkTubeFilter()
 tubeFilter.SetInputConnection(transformFilter.GetOutputPort())
 tubeFilter.SetRadius(40)
 
-# Setup actor and mapper
+# Mapper du polyline
 polylineMapper = vtk.vtkPolyDataMapper()
 polylineMapper.SetInputConnection(tubeFilter.GetOutputPort())
 polylineMapper.ScalarVisibilityOn()
@@ -233,6 +261,7 @@ mappedPoints.Update()
 imageData = mappedPoints.GetOutput()
 imageX, imageY, imageZ = imageData.GetDimensions()
 
+# masque transparent 
 transparentMask = vtk.vtkImageData()
 transparentMask.SetExtent(imageData.GetExtent())
 transparentMask.AllocateScalars(vtk.VTK_UNSIGNED_CHAR, 1)
