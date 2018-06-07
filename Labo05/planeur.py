@@ -15,6 +15,25 @@ De plus, la carte et le glider étaient écrasés sur une des dimensions (peut-�
 pour obtenir une carte plus agréable à regarder.
 '''
 
+class MyInteractorStyle(vtk.vtkInteractorStyleTrackballCamera):
+
+    def __init__(self, textActor, renWin, grid, parent=None):
+        self.renWin = renWin
+        self.textActor = textActor
+        self.grid = grid
+        self.AddObserver("MouseMoveEvent",self.mouseMoveEvent)
+ 
+    def mouseMoveEvent(self,obj,event):
+        clickPos = self.GetInteractor().GetEventPosition()
+        picker = vtk.vtkPointPicker()
+        picker.Pick(clickPos[0], clickPos[1], 0, self.GetDefaultRenderer())
+        point = picker.GetPointId()
+        if(point != -1):
+            altitude = self.grid.GetPointData().GetScalars().GetValue(point)
+            self.textActor.SetInput("Altitude : " + str(altitude) + "m")
+            self.renWin.Render()
+        self.OnMouseMove()
+        return
 
 # distance de la caméra en proportion du rayon de la terre
 distanceFactor = 1.006
@@ -22,7 +41,7 @@ distanceFactor = 1.006
 # adapte la carte pour un meilleur rendu
 LON_ADAPT = 0.5
 
-EARTH_RADIUS = 6371009
+EARTH_RADIUS = 6356750 #6371009
 
 # chemin des fichiers à traiter
 GLIDER_FILE_PATH = "vtkgps.txt"
@@ -121,6 +140,9 @@ points.Allocate(MAP_REDUCED_SIZE_Y * MAP_REDUCED_SIZE_X)
 scalars = vtk.vtkFloatArray()
 scalars.SetNumberOfComponents(2)
 
+scalarsAlt = vtk.vtkIntArray()
+scalarsAlt.SetNumberOfComponents(1)
+
 # parcours des données et création des points
 for lon, x in zip(np.linspace(MIN_LONG_SWE, MAX_LONG_SWE, MAP_REDUCED_SIZE_X), range(MIN_X, MAX_X)):
     for lat, y in zip(np.linspace(MIN_LAT_SWE, MAX_LAT_SWE, MAP_REDUCED_SIZE_Y)[::-1], range(MIN_Y, MAX_Y)):
@@ -135,9 +157,11 @@ for lon, x in zip(np.linspace(MIN_LONG_SWE, MAX_LONG_SWE, MAP_REDUCED_SIZE_X), r
         )
 
         scalars.InsertNextTuple(XtoL(lon, lat))
+        scalarsAlt.InsertNextValue(mapData[y][x])
 
 structuredGrid.SetPoints(points)
 structuredGrid.GetPointData().SetTCoords(scalars)
+structuredGrid.GetPointData().SetScalars(scalarsAlt)
 
 geometryFilter = vtk.vtkStructuredGridGeometryFilter()
 geometryFilter.SetInputData(structuredGrid)
@@ -242,6 +266,7 @@ polylineMapper.SetColorModeToMapScalars()
 
 polylineActor = vtk.vtkActor()
 polylineActor.SetMapper(polylineMapper)
+polylineActor.PickableOff()
 
 '''application d'une transformation convertissant les altitudes latitudes et longitudes
 en coordonnées sur les axes orthogonaux'''
@@ -253,6 +278,7 @@ transformFilter2.Update()
 
 mapMapper = vtk.vtkPolyDataMapper()
 mapMapper.SetInputConnection(transformFilter2.GetOutputPort())
+mapMapper.ScalarVisibilityOff()
 
 # mapping des points pour la texture
 mappedPoints = vtk.vtkJPEGReader()
@@ -294,10 +320,24 @@ scalarBar.SetTitle("Vertical Speed")
 scalarBar.SetLabelFormat("%4.0f")
 scalarBar.SetVerticalTitleSeparation(30)
 
+# 2dactor for displaying text
+textActor = vtk.vtkTextActor()
+textActor.SetTextScaleModeToNone()
+textActor.SetDisplayPosition(10, 10)
+textActor.SetInput("")
+
+tprop = textActor.GetTextProperty()
+tprop.SetFontSize(20)
+tprop.SetFontFamilyToArial()
+tprop.SetJustificationToLeft()
+tprop.BoldOn()
+tprop.SetColor(1, 0, 0)
+
 ren1 = vtk.vtkRenderer()
 ren1.AddActor(mapActor)
 ren1.AddActor(polylineActor)
 ren1.AddActor(scalarBar)
+ren1.AddActor(textActor)
 ren1.SetBackground(0.1, 0.2, 0.4)
 ren1.SetUseFXAA(True)
 
@@ -324,8 +364,8 @@ renWin.Render()
 
 iren = vtk.vtkRenderWindowInteractor()
 iren.SetRenderWindow(renWin)
-
-style = vtk.vtkInteractorStyleTrackballCamera()
+style = MyInteractorStyle(textActor, renWin, structuredGrid)
+style.SetDefaultRenderer(ren1)
 iren.SetInteractorStyle(style)
 
 iren.Initialize()
