@@ -286,10 +286,18 @@ altitudeSphere.SetRadius(EARTH_RADIUS + 800.0)
 cutter = vtk.vtkCutter()
 cutter.SetInputConnection(transformFilter2.GetOutputPort())
 cutter.SetCutFunction(altitudeSphere)
-cutter.SetOutputPointsPrecision(4)
+cutter.Update()
+
+tubeFilter = vtk.vtkTubeFilter()
+tubeFilter.SetInputConnection(cutter.GetOutputPort())
+tubeFilter.SetRadius(20)
+
+traceMapper = vtk.vtkPolyDataMapper()
+traceMapper.SetInputConnection(tubeFilter.GetOutputPort())
+traceMapper.ScalarVisibilityOff()
 
 mapMapper = vtk.vtkPolyDataMapper()
-mapMapper.SetInputConnection(cutter.GetOutputPort())
+mapMapper.SetInputConnection(transformFilter2.GetOutputPort())
 mapMapper.ScalarVisibilityOff()
 
 # mapping des points pour la texture
@@ -325,6 +333,10 @@ mapActor = vtk.vtkActor()
 mapActor.SetMapper(mapMapper)
 mapActor.SetTexture(texture)
 
+traceActor = vtk.vtkActor()
+traceActor.SetMapper(traceMapper)
+traceActor.GetProperty().SetColor(1,0,0)
+
 # légende pour la lookupTable
 scalarBar = vtk.vtkScalarBarActor()
 scalarBar.SetLookupTable(lookupColor)
@@ -347,6 +359,7 @@ tprop.SetColor(1, 0, 0)
 
 ren1 = vtk.vtkRenderer()
 ren1.AddActor(mapActor)
+ren1.AddActor(traceActor)
 ren1.AddActor(polylineActor)
 ren1.AddActor(scalarBar)
 ren1.AddActor(textActor)
