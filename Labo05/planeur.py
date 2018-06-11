@@ -17,11 +17,12 @@ pour obtenir une carte plus agréable à regarder.
 
 class MyInteractorStyle(vtk.vtkInteractorStyleTrackballCamera):
 
-    def __init__(self, textActor, renWin, grid, parent=None):
+    def __init__(self, textActor, renWin, grid, cutter, parent=None):
         self.renWin = renWin
         self.textActor = textActor
         self.grid = grid
         self.AddObserver("MouseMoveEvent",self.mouseMoveEvent)
+        self.cutter = cutter
  
     def mouseMoveEvent(self,obj,event):
         clickPos = self.GetInteractor().GetEventPosition()
@@ -31,6 +32,9 @@ class MyInteractorStyle(vtk.vtkInteractorStyleTrackballCamera):
         if(point != -1):
             altitude = self.grid.GetPointData().GetScalars().GetValue(point)
             self.textActor.SetInput("Altitude : " + str(altitude) + "m")
+            altitudeSphere = vtk.vtkSphere()
+            altitudeSphere.SetRadius(EARTH_RADIUS + altitude)
+            self.cutter.SetCutFunction(altitudeSphere)
             self.renWin.Render()
         self.OnMouseMove()
         return
@@ -276,8 +280,16 @@ transformFilter2.SetTransform(tf)
 transformFilter2.SetInputConnection(geometryFilter.GetOutputPort())
 transformFilter2.Update()
 
+altitudeSphere = vtk.vtkSphere()
+altitudeSphere.SetRadius(EARTH_RADIUS + 800.0)
+
+cutter = vtk.vtkCutter()
+cutter.SetInputConnection(transformFilter2.GetOutputPort())
+cutter.SetCutFunction(altitudeSphere)
+cutter.SetOutputPointsPrecision(4)
+
 mapMapper = vtk.vtkPolyDataMapper()
-mapMapper.SetInputConnection(transformFilter2.GetOutputPort())
+mapMapper.SetInputConnection(cutter.GetOutputPort())
 mapMapper.ScalarVisibilityOff()
 
 # mapping des points pour la texture
@@ -364,7 +376,7 @@ renWin.Render()
 
 iren = vtk.vtkRenderWindowInteractor()
 iren.SetRenderWindow(renWin)
-style = MyInteractorStyle(textActor, renWin, structuredGrid)
+style = MyInteractorStyle(textActor, renWin, structuredGrid, cutter)
 style.SetDefaultRenderer(ren1)
 iren.SetInteractorStyle(style)
 
