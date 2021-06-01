@@ -37,7 +37,7 @@ snowballstemmer==1.2.1
 Sphinx==1.7.1
 sphinxcontrib-websupport==1.0.1
 typing==3.6.4
-urllib3==1.22
+urllib3==1.26.5
 win-inet-pton==1.0.1
 wincertstore==0.2
 wrapt==1.10.11
